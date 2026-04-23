@@ -1,7 +1,18 @@
+interface MappingDescription {
+  label: string;
+  query: string;
+}
+
 interface QueryDescription {
   name: string;
   query: string;
+  mappings: MappingDescription[];
 }
+
+const identityMapping: MappingDescription = {
+  label: 'Identity',
+  query: 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
+};
 
 export const exampleQueries: QueryDescription[] = [
   {
@@ -17,94 +28,177 @@ WHERE {
   FILTER LANGMATCHES(LANG(?title), "EN")
   FILTER LANGMATCHES(LANG(?name),  "EN")
 }`,
+    mappings: [identityMapping],
   },
   {
-    name: "ADJUST – timezone-adjusted date constant",
-    query: `PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+    name: "Movie cast — virtual vocabulary",
+    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT *
+SELECT ?movie ?title ?actor ?actorName
 WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-         rdfs:label ?title;
-         dbpedia-owl:director [ rdfs:label ?name ].
+  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] ;
+         rdfs:label ?title ;
+         dbpedia-owl:starring ?actor .
+  ?actor rdfs:label ?actorName .
   FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?name),  "EN")
-  BIND( ADJUST ("2010-06-21T00:00:00Z"^^xsd:dateTime, "-PT10H"^^xsd:dayTimeDuration) as ?adjustedDate) .
-}`,
-  },
-  {
-    name: "ADJUST – actor birth dates shifted by 5 hours",
-    query: `PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+  FILTER LANGMATCHES(LANG(?actorName), "EN")
+} LIMIT 20`,
+    mappings: [
+      {
+        label: 'Film → ex:Movie',
+        query: `PREFIX ex: <http://example.org/>
 PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT ?name ?birthDate ?birthDateShifted
+CONSTRUCT { ?film a ex:Movie ; ex:title ?title }
+WHERE {
+  ?film a dbpedia-owl:Film ;
+        rdfs:label ?title .
+  FILTER LANGMATCHES(LANG(?title), "en")
+}`,
+      },
+      {
+        label: 'Actor → ex:Person',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT { ?person a ex:Person ; ex:name ?name }
+WHERE {
+  ?person a dbpedia-owl:Actor ;
+          rdfs:label ?name .
+  FILTER LANGMATCHES(LANG(?name), "en")
+}`,
+      },
+      {
+        label: 'Starring → ex:features',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+
+CONSTRUCT { ?film ex:features ?actor }
+WHERE { ?film dbpedia-owl:starring ?actor }`,
+      },
+    ],
+  },
+  {
+    name: "Director filmography — virtual vocabulary",
+    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?film ?title ?director ?directorName
+WHERE {
+  ?film dbpedia-owl:director ?director ;
+        rdfs:label ?title .
+  ?director rdfs:label ?directorName .
+  FILTER LANGMATCHES(LANG(?title), "EN")
+  FILTER LANGMATCHES(LANG(?directorName), "EN")
+} LIMIT 20`,
+    mappings: [
+      {
+        label: 'ex:directedBy',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT { ?film ex:directedBy ?director ; ex:title ?title }
+WHERE {
+  ?film dbpedia-owl:director ?director ;
+        rdfs:label ?title .
+  FILTER LANGMATCHES(LANG(?title), "en")
+}`,
+      },
+      {
+        label: 'Director → ex:Director',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT { ?person a ex:Director ; ex:name ?name }
+WHERE {
+  ?person a dbpedia-owl:Person ;
+          rdfs:label ?name .
+  FILTER LANGMATCHES(LANG(?name), "en")
+}`,
+      },
+    ],
+  },
+  {
+    name: "Co-starring actors — virtual vocabulary",
+    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?name1 ?name2
+WHERE {
+  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
+  FILTER (?actor1 != ?actor2)
+  ?actor1 rdfs:label ?name1 .
+  ?actor2 rdfs:label ?name2 .
+  ?film dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] .
+  FILTER LANGMATCHES(LANG(?name1), "EN")
+  FILTER LANGMATCHES(LANG(?name2), "EN")
+} LIMIT 20`,
+    mappings: [
+      {
+        label: 'ex:coStarredWith',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+
+CONSTRUCT { ?actor1 ex:coStarredWith ?actor2 }
+WHERE {
+  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
+  FILTER (?actor1 != ?actor2)
+}`,
+      },
+      {
+        label: 'Actor name → ex:name',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT { ?actor ex:name ?name }
+WHERE {
+  ?actor a dbpedia-owl:Actor ;
+         rdfs:label ?name .
+  FILTER LANGMATCHES(LANG(?name), "en")
+}`,
+      },
+    ],
+  },
+  {
+    name: "Actor birth dates — temporal mapping",
+    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?name ?birthDate
 WHERE {
   ?person a dbpedia-owl:Actor ;
           rdfs:label ?name ;
           dbpedia-owl:birthDate ?birthDate .
   FILTER LANGMATCHES(LANG(?name), "EN")
-  BIND(ADJUST( xsd:dateTime(?birthDate), "-PT5H"^^xsd:dayTimeDuration) AS ?birthDateShifted)
 } LIMIT 20`,
-  },
-  {
-    name: "LATERAL – movies starring Brad Pitt with a single label",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    mappings: [
+      {
+        label: 'Birth date → ex:born',
+        query: `PREFIX ex: <http://example.org/>
+PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
 
-SELECT * WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-  LATERAL { SELECT * { ?movie rdfs:label ?title; } LIMIT 1 } .
-  LATERAL { SELECT * { ?movie dbpedia-owl:director [ rdfs:label ?name ]  } LIMIT 1 } .
-}`,
-  },
-  {
-    name: "LATERAL – movies staring Brad Pitt with single optional label",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT * WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-  LATERAL { OPTIONAL { SELECT * { ?movie rdfs:label ?title; } LIMIT 1 } } .
-  LATERAL { OPTIONAL { SELECT * { ?movie dbpedia-owl:director [ rdfs:label ?name ]  } LIMIT 1 } } .
-}`,
-  },
-  {
-    name: "SPARQL 1.2 – TRIPLE() term creator",
-    query: `PREFIX ex: <http://example.org/>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+CONSTRUCT { ?person ex:born ?date }
+WHERE { ?person dbpedia-owl:birthDate ?date }`,
+      },
+      {
+        label: 'Actor → ex:Person',
+        query: `PREFIX ex: <http://example.org/>
 PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT *
+CONSTRUCT { ?person a ex:Person ; ex:name ?name }
 WHERE {
-  ?movie a dbpedia-owl:Film ;
-         dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-         rdfs:label ?title;
-         dbpedia-owl:director [ rdfs:label ?name ].
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?name),  "EN")
-  BIND( TRIPLE( ?movie, rdfs:type , ex:BradPittMovie) as ?typer) .
+  ?person a dbpedia-owl:Actor ;
+          rdfs:label ?name .
+  FILTER LANGMATCHES(LANG(?name), "en")
 }`,
+      },
+    ],
   },
-  {
-    name: "SPARQL 1.2 + LATERAL – annotated triples for co-starring actors",
-    query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT * WHERE {
-  ?movie a dbpedia-owl:Film ;
-    rdfs:label ?title ;
-         
-  LATERAL {       
-      ?movie  dbpedia-owl:starring ?actor1 , ?actor2 .
-      FILTER ( ?actor1 != ?actor2)
-  }
-                          
-  BIND(TRIPLE(?actor1, ex:coStarredWith, ?actor2) AS ?annotated)
-} LIMIT 10`,
-  },
-]
+];

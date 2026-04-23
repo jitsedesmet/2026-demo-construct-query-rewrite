@@ -15,8 +15,8 @@
     queryRunning?: boolean;
     queryStartTime?: number;
     queryCancelled?: boolean;
-    parserComposition?: Set<string>;
-    engineComposition?: Set<string>;
+    rewrittenQuery?: string;
+    rewrite?: (query: string) => string;
     sources?: string[];
   }
   let {
@@ -26,8 +26,8 @@
     queryRunning = $bindable(false),
     queryStartTime = $bindable(0),
     queryCancelled = $bindable(false),
-    parserComposition = $bindable(new Set<string>()),
-    engineComposition = $bindable(new Set<string>()),
+    rewrittenQuery = $bindable(''),
+    rewrite = (q) => q,
     sources = ["https://fragments.dbpedia.org/2016-04/en"],
   }: Props = $props();
   let error = $state<string | undefined>(undefined);
@@ -79,7 +79,8 @@
         queryCancelled = false;
         queryStartTime = Date.now();
 
-        const bindingStream = await engine.queryBindings(query, { sources: currentSources });
+        rewrittenQuery = rewrite(query);
+        const bindingStream = await engine.queryBindings(rewrittenQuery, { sources: currentSources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;
