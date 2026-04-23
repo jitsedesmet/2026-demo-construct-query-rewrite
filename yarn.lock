@@ -4408,14 +4408,6 @@
     "@traqula/rules-sparql-1-2" "^1.0.7"
     rdf-data-factory "^2.0.1"
 
-"@traqula/rules-sparql-1-1-adjust@^1.0.7":
-  version "1.0.7"
-  resolved "https://registry.yarnpkg.com/@traqula/rules-sparql-1-1-adjust/-/rules-sparql-1-1-adjust-1.0.7.tgz#a2a41063ae6b1d035980a0b455e13f9757b73dce"
-  integrity sha512-NLvkhFAHVE9CGLplgpEZG1YCgXi3HUBQ7Qbh1ojf09iq8SIazc4N0qPc685uuzJ4GBhVpUHFzjyg7qeoNw+FKQ==
-  dependencies:
-    "@traqula/core" "^1.0.7"
-    "@traqula/rules-sparql-1-1" "^1.0.7"
-
 "@traqula/rules-sparql-1-1@^1.0.7":
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/@traqula/rules-sparql-1-1/-/rules-sparql-1-1-1.0.7.tgz#219c3d456b686d55b0add203202d91cd7cf74c93"
