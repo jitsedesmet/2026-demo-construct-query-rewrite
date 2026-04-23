@@ -23,6 +23,13 @@ export default defineConfig({
       {
         find: /^diagnostics_channel$/,
         replacement: shim('./src/lib/shims/diagnostics_channel.ts')
+      },
+      // readable-stream uses require('process/') with a trailing slash, which bypasses
+      // vite-plugin-node-polyfills' alias for 'process'. Map it explicitly to the
+      // browser-safe shim so process.nextTick is available.
+      {
+        find: /^process\/$/,
+        replacement: shim('../node_modules/process/browser.js')
       }
     ]
   },

@@ -9,10 +9,9 @@
 
   interface Props {
     mappings: Mapping[];
-    height?: string;
   }
 
-  let { mappings = $bindable([makeDefault()]), height = '25svh' }: Props = $props();
+  let { mappings = $bindable([makeDefault()]) }: Props = $props();
 
   let activeId = $state(mappings[0]?.id ?? '');
 
@@ -106,7 +105,7 @@
   <div class="tab-content">
     {#each mappings as mapping (mapping.id)}
       {#if activeId === mapping.id}
-        <YasqeEditor bind:query={mapping.query} {height} />
+        <YasqeEditor bind:query={mapping.query} />
       {/if}
     {/each}
   </div>

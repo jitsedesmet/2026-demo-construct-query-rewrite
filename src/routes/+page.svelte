@@ -171,13 +171,13 @@ WHERE {
       <!-- Mappings section -->
       <section class="config-section">
         <h2>Mappings</h2>
-        <MappingEditor bind:mappings height="22svh" />
+        <MappingEditor bind:mappings />
       </section>
 
       <!-- Rewritten query section -->
       <section class="config-section rewritten-section">
         <h2>Rewritten query <span class="section-hint">(read-only, populated on execute)</span></h2>
-        <YasqeEditor query={rewrittenQuery} readonly height="18svh" />
+        <YasqeEditor query={rewrittenQuery} readonly />
       </section>
 
     </div>
@@ -305,6 +305,7 @@ WHERE {
   /* ---- Config sections ---- */
   .config-section {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -313,10 +314,6 @@ WHERE {
     padding: 0.75rem;
     background: #fafbfc;
     overflow: hidden;
-  }
-
-  .rewritten-section {
-    flex: 0 0 auto;
   }
 
   .source-label {
