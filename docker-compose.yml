@@ -1,0 +1,8 @@
+services:
+  webapp:
+    image: ghcr.io/jitsedesmet/demo-construct-query-rewrite:latest
+    build:
+      context: .
+      network: host
+    ports:
+      - "3000:3000"

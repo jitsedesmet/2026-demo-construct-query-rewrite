@@ -1,0 +1,15 @@
+name: Build-and-push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/build-might-push.yml
+    with:
+      push: true
+    permissions:
+      contents: read
+      packages: write

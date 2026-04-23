@@ -1,0 +1,12 @@
+name: Build
+
+on: pull_request
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-might-push.yml
+    permissions:
+      packages: read
+      contents: read
+    with:
+      push: false

@@ -1,0 +1,19 @@
+// See https://containers.dev/implementors/json_reference/ for configuration reference
+{
+  "name": "Untitled Node.js project",
+  "build": {
+      "dockerfile": "Dockerfile"
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/config.json,target=/home/node/.copilot/config.json,type=bind"
+  ],
+  forwardPorts: [5173],
+  "remoteUser": "node",
+  "postCreateCommand": "curl -fsSL https://gh.io/copilot-install | bash",
+  "customizations" : {
+    "jetbrains" : {
+      "backend" : "WebStorm"
+    }
+  }
+
+}
