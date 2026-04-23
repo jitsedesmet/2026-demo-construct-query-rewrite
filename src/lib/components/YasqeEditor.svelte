@@ -64,4 +64,9 @@
   .yasqe-editor-wrap :global(.yasqe) {
     height: 100%;
   }
+
+  .yasqe-editor-wrap :global(.yasqe_queryButton),
+  .yasqe-editor-wrap :global(.yasqe_share) {
+    display: none;
+  }
 </style>
