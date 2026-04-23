@@ -48,15 +48,17 @@
   function yasge(element: HTMLElement, { query: startQuery }: Props): ActionReturn<YasgeContext> {
     const yasqe = new Yasqe(element, {
       editorHeight: '40svh',
-      requestConfig: {
-        method: "GET",
-        endpoint: "https://fragments.dbpedia.org/2016-04/en",
-      }
     });
 
     if (startQuery !== undefined) yasqe.setValue(startQuery);
 
-    yasqe.on('query', async () => {
+    // Override yasqe.query so both the run button and keyboard shortcuts (Ctrl-Enter / Cmd-Enter)
+    // execute via Comunica instead of making an HTTP request to a SPARQL endpoint.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (yasqe as any).query = async () => {
+      const currentSources = sources;
+      if (currentSources.length === 0) return;
+
       // Free resources from any currently-running query before starting a new one
       abortController?.abort();
       activeStream?.destroy();
@@ -77,7 +79,7 @@
         queryCancelled = false;
         queryStartTime = Date.now();
 
-        const bindingStream = await engine.queryBindings(query);
+        const bindingStream = await engine.queryBindings(query, { sources: currentSources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;
@@ -106,15 +108,14 @@
           queryRunning = false;
         }
       }
-    });
+    };
 
     return {
       update({ query: newQuery }) {
-        if (newQuery !== undefined) {
+        if (newQuery !== undefined && newQuery !== yasqe.getValue()) {
           error = undefined;
           yasqe.setValue(newQuery);
         }
-        query = undefined;
       },
       destroy() {
         yasqe.destroy();

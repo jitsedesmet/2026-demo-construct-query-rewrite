@@ -3,7 +3,6 @@
   import ToggleGroup from "$lib/components/ToggleGroup.svelte";
   import TabPanel from "$lib/components/TabPanel.svelte";
   import QueryResults from "$lib/components/QueryResults.svelte";
-  import CodeBlock from "$lib/components/CodeBlock.svelte";
   import SourceSelector from "$lib/components/SourceSelector.svelte";
   import type {Bindings} from "@rdfjs/types";
   import {alterQuery, getQueryParam, removeQuery} from "$lib/helpers.svelte";
@@ -21,7 +20,6 @@
   function syncButtonState(composition: Set<string>, key: string): void {
     const list = [...composition];
     const newIri = list.length === 0 ? removeQuery(key) : alterQuery(key, list.join(','))
-    console.log(newIri, list);
     goto(newIri, {
       replaceState: true,
     });
@@ -57,26 +55,6 @@
   let parserActiveTab = $state('lexer');
   // Engine tabs
   let engineActiveTab = $state('config-default');
-
-  let fetchedContents = $state<Map<string, string>>(new Map());
-  const fetchingUrls = new Set<string>();
-
-  function fetchUrl(urlString: string): void {
-    if (!fetchedContents.has(urlString) && !fetchingUrls.has(urlString)) {
-      fetchingUrls.add(urlString);
-      fetch(urlString)
-        .then(r => r.text())
-        .then(text => {
-          fetchedContents = new Map(fetchedContents).set(urlString, text);
-        })
-        .catch(() => {
-          fetchedContents = new Map(fetchedContents).set(urlString, '// Failed to load content');
-        })
-        .finally(() => {
-          fetchingUrls.delete(urlString);
-        });
-    }
-  }
 
   // Query & results
   let selectedSources = $state<string[]>(["https://fragments.dbpedia.org/2016-04/en"]);
