@@ -2,6 +2,13 @@
   import Yasqe from "@triply/yasqe";
   import type { ActionReturn } from "svelte/action";
 
+  import { base } from '$app/paths';
+
+  // prefix.cc's SSL certificate is expired.  Point YASQE at our own bundled copy
+  // of the popular-prefixes JSON so the autocompleter works without hitting the
+  // broken external endpoint.
+  Yasqe.defaults.prefixCcApi = `${base}/prefix-cc.json`;
+
   interface Props {
     query?: string;
     readonly?: boolean;
