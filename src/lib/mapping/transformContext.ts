@@ -96,6 +96,22 @@ export function prefixMappingVars(
   };
 }
 
+export function constructToMappers(
+  c: Pick<TransformContext, 'parser' | 'AF' | 'astTransformer'>,
+  constructQuery: string,
+): Mapping[] {
+  const {parser, AF} = c;
+  const construct = <Algebra.Construct> parseQuery({ parser }, constructQuery);
+
+  //split to single
+  const constructs: Algebra.Construct[] = [];
+  for (const template of construct.template) {
+    constructs.push(AF.createConstruct(construct.input, [template]));
+  }
+
+  return constructs.map(x => constructToMapper(c, x))
+}
+
 /**
  * Converts a SPARQL CONSTRUCT query string into a Mapping object.
  *
@@ -104,21 +120,16 @@ export function prefixMappingVars(
  * the variables used in the head.
  *
  * @param context - Partial context with parser, AF, and astTransformer
- * @param constructQuery - SPARQL CONSTRUCT query string
+ * @param construct - SPARQL CONSTRUCT query as algebra
  * @returns A Mapping with the template as head and WHERE clause as body
  * @throws Error if the construct has != 1 template triple
  * @throws Error if the head contains blank nodes
  * @throws Error if the body uses the BNODE() function
  */
 export function constructToMapper(
-  { parser, AF, astTransformer }: Pick<TransformContext, 'parser' | 'AF' | 'astTransformer'>,
-  constructQuery: string,
+  { AF, astTransformer }: Pick<TransformContext, 'parser' | 'AF' | 'astTransformer'>,
+  construct: Algebra.Construct,
 ): Mapping {
-  const construct = <Algebra.Construct> parseQuery({ parser }, constructQuery);
-  if (construct.template.length !== 1) {
-    throw new Error(`Mappers should have only a single mapping head, found ${construct.template.length}:
-${JSON.stringify(construct.template, null, 2)}`);
-  }
   const head: MappingHead = {
     ...construct.template[0],
     type: 'template',
@@ -187,7 +198,7 @@ export function createPartialContext(): Omit<TransformContext, 'mappers'> {
 export function transformContextFromConstructs(mappers: readonly string[]): TransformContext {
   const partialContext = createPartialContext();
   const algebraMappers = mappers
-    .map(constructQuery => constructToMapper(partialContext, constructQuery))
+    .flatMap(constructQuery => constructToMappers(partialContext, constructQuery))
     .map((mapping, index) => prefixMappingVars(partialContext, mapping, `m${index}_`));
   return {
     mappers: algebraMappers,
