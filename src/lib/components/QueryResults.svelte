@@ -39,7 +39,7 @@
         {#if [...binding.keys()].length === 0}
           <span class="empty-binding">(empty binding)</span>
         {:else}
-          {#each [...binding] as [variable, term]}
+          {#each [...binding].toSorted(([a], [b]) => a.value.localeCompare(b.value)) as [variable, term]}
             <div class="binding-row">
               <span class="var-badge">?{variable.value}</span>
               <span class="term-value">{termToString(term)}</span>
