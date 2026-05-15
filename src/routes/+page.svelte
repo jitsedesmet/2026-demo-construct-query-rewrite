@@ -3,7 +3,7 @@
   import YasqeEditor from "$lib/components/YasqeEditor.svelte";
   import MappingEditor from "$lib/components/MappingEditor.svelte";
   import type { Mapping } from "$lib/mapping";
-  import { DEFAULT_MAPPING_QUERY, DEFAULT_MAPPING_LABEL } from "$lib/mapping";
+  import { DEFAULT_MAPPING_QUERY, DEFAULT_MAPPING_LABEL, transformQueryUsingConstructs } from "$lib/mapping";
   import QueryResults from "$lib/components/QueryResults.svelte";
   import SourceSelector from "$lib/components/SourceSelector.svelte";
   import type {Bindings} from "@rdfjs/types";
@@ -205,7 +205,7 @@ WHERE {
           bind:queryStartTime
           bind:queryCancelled
           bind:rewrittenQuery
-          rewrite={(q) => q}
+          rewrite={(q) => transformQueryUsingConstructs(q, mappings.map(m => m.query))}
           sources={selectedSources}
         />
         {#if queryRunning}
