@@ -32,6 +32,9 @@
   // ── Pending example load (for overwrite-protection modal) ──────────────────
   let pendingExample = $state<(typeof exampleQueries)[0] | null>(null);
   let showModal = $state(false);
+  let showInfoModal = $state(false);
+  let infoTopic = $state<'mappings' | 'query' | null>(null);
+  let showSourcesInfo = $state(false);
 
   // ── Query & results ────────────────────────────────────────────────────────
   let selectedSources = $state<string[]>(["https://fragments.dbpedia.org/2016-04/en"]);
@@ -114,6 +117,16 @@ WHERE {
     showModal = false;
   }
 
+  function openInfo(topic: 'mappings' | 'query') {
+    infoTopic = topic;
+    showInfoModal = true;
+  }
+
+  function closeInfo() {
+    showInfoModal = false;
+    infoTopic = null;
+  }
+
   let cancelBtnEl = $state<HTMLButtonElement | undefined>(undefined);
 
   // Focus cancel button when modal opens (proper focus management for dialogs)
@@ -123,6 +136,12 @@ WHERE {
   $effect(() => {
     if (!showModal) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelLoad(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
+  $effect(() => {
+    if (!showInfoModal) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeInfo(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   });
@@ -159,6 +178,28 @@ WHERE {
   </div>
 {/if}
 
+{#if showInfoModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={closeInfo}>
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="info-modal-title">
+      <h3 id="info-modal-title">{infoTopic === 'mappings' ? 'Mappings limitations' : 'User query limitations'}</h3>
+      {#if infoTopic === 'mappings'}
+        <p>
+          Mapping heads cannot contain blank nodes. Please use IRIs or variables in the head when defining mappings.
+        </p>
+      {:else if infoTopic === 'query'}
+        <p>
+          User queries do not support path recursion. Recursive property paths are not allowed.
+        </p>
+      {/if}
+      <div class="modal-actions">
+        <button class="btn-confirm" onclick={closeInfo}>Close</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <div class="page">
   <header bind:clientHeight={headerHeight}>
     <h1>SPARQL Query Rewriting</h1>
@@ -170,7 +211,10 @@ WHERE {
 
       <!-- Mappings section -->
       <section class="config-section">
-        <h2>Mappings</h2>
+        <div class="section-title-row">
+          <h2>Mappings</h2>
+          <button class="info-btn" type="button" aria-label="Mappings information" title="Mappings information" onclick={() => openInfo('mappings')}>?</button>
+        </div>
         <MappingEditor bind:mappings />
       </section>
 
@@ -187,6 +231,7 @@ WHERE {
       <section class="query-section">
         <div class="query-title-row">
           <h2>Query</h2>
+          <button class="info-btn" type="button" aria-label="Query information" title="Query information" onclick={() => openInfo('query')}>?</button>
           <select class="example-select" value={activeExampleName} onchange={loadExample}>
             <option value="" disabled>Load example…</option>
             {#each exampleQueries as example}
@@ -194,7 +239,19 @@ WHERE {
             {/each}
           </select>
         </div>
-        <span class="source-label">Choose datasources:</span>
+        <div class="source-row">
+          <span class="source-label">Choose datasources:</span>
+          <button class="source-info-toggle" type="button" onclick={() => (showSourcesInfo = !showSourcesInfo)}>
+            {showSourcesInfo ? 'Hide source requirements' : 'Show source requirements'}
+          </button>
+        </div>
+        {#if showSourcesInfo}
+          <p class="sources-info-text">
+            Sources should not expose blank nodes, but instead expose a skolemized view over their data. Multiple calls
+            to the same source to discover additional information about a blank node are not possible. This requirement
+            is shared by federated querying.
+          </p>
+        {/if}
         <SourceSelector bind:selected={selectedSources} />
         <Yasge
           bind:this={yasgeRef}
@@ -321,11 +378,69 @@ WHERE {
     white-space: nowrap;
   }
 
+  .source-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .source-info-toggle {
+    border: 1px solid #d0d7de;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 0.78em;
+    padding: 0.15rem 0.45rem;
+    cursor: pointer;
+  }
+
+  .source-info-toggle:hover {
+    background: #f6f8fa;
+  }
+
+  .sources-info-text {
+    margin: 0 0 0.45rem 0;
+    font-size: 0.84em;
+    color: #444;
+    line-height: 1.4;
+  }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-title-row h2 {
+    margin: 0;
+  }
+
   .query-title-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     margin-bottom: 0.4rem;
+  }
+
+  .info-btn {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    border: 1px solid #d97706;
+    background: #fb923c;
+    color: #fff;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .info-btn:hover {
+    background: #ea580c;
   }
 
   .query-title-row h2 {
