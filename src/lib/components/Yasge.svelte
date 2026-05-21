@@ -122,8 +122,10 @@
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (yasqe as any).query().catch(() => {});
     };
-    const existingExtraKeys = yasqe.getOption('extraKeys') as Record<string, unknown> | undefined;
-    yasqe.setOption('extraKeys', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingExtraKeys = (yasqe as any).getOption('extraKeys') as Record<string, unknown> | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (yasqe as any).setOption('extraKeys', {
       ...existingExtraKeys,
       "Ctrl-Enter": runCustomQuery,
       "Cmd-Enter": runCustomQuery,
