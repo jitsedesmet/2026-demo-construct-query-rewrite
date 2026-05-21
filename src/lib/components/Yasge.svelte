@@ -118,6 +118,17 @@
       }
     };
 
+    const runCustomQuery = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (yasqe as any).query().catch(() => {});
+    };
+    const existingExtraKeys = yasqe.getOption('extraKeys') as Record<string, unknown> | undefined;
+    yasqe.setOption('extraKeys', {
+      ...existingExtraKeys,
+      "Ctrl-Enter": runCustomQuery,
+      "Cmd-Enter": runCustomQuery,
+    });
+
     return {
       update({ query: newQuery }) {
         if (newQuery !== undefined && newQuery !== yasqe.getValue()) {
