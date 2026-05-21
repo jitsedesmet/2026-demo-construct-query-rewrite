@@ -118,6 +118,19 @@
       }
     };
 
+    const runCustomQuery = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (yasqe as any).query().catch(() => {});
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingExtraKeys = (yasqe as any).getOption('extraKeys') as Record<string, unknown> | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (yasqe as any).setOption('extraKeys', {
+      ...existingExtraKeys,
+      "Ctrl-Enter": runCustomQuery,
+      "Cmd-Enter": runCustomQuery,
+    });
+
     return {
       update({ query: newQuery }) {
         if (newQuery !== undefined && newQuery !== yasqe.getValue()) {
