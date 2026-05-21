@@ -38,6 +38,7 @@
   }: Props = $props();
   let error = $state<string | undefined>(undefined);
   const engine = new QueryEngine();
+  const EMPTY_SOURCE = 'data:text/turtle,';
   let abortController: AbortController | undefined;
   let activeStream: { destroy: () => void } | undefined;
 
@@ -63,7 +64,7 @@
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (yasqe as any).query = async () => {
       const currentSources = sources;
-      if (currentSources.length === 0) return;
+      const querySources = currentSources.length > 0 ? currentSources : [EMPTY_SOURCE];
 
       // Free resources from any currently-running query before starting a new one
       abortController?.abort();
@@ -86,7 +87,7 @@
         queryStartTime = Date.now();
 
         rewrittenQuery = rewrite(query);
-        const bindingStream = await engine.queryBindings(rewrittenQuery, { sources: currentSources });
+        const bindingStream = await engine.queryBindings(rewrittenQuery, { sources: querySources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;
