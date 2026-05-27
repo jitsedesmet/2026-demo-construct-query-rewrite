@@ -8,6 +8,7 @@
   import SourceSelector from "$lib/components/SourceSelector.svelte";
   import type {Bindings} from "@rdfjs/types";
   import {alterQuery, getQueryParam} from "$lib/helpers.svelte";
+  import {onMount} from "svelte";
   import {goto} from "$app/navigation";
   import {exampleQueries} from "$lib/exampleQueries";
 
@@ -79,7 +80,7 @@ WHERE {
 
   // ── Derive active example name from URL ───────────────────────────────────
   let activeExampleName = $derived(
-    exampleQueries.find(q => q.query === getQueryParam('query'))?.name ?? ''
+    exampleQueries.find(q => q.query === query)?.name ?? ''
   );
 
   // ── Example loading ────────────────────────────────────────────────────────
@@ -155,6 +156,20 @@ WHERE {
     applyExample(example);
     await goto(alterQuery('query', example.query), { replaceState: false });
   }
+
+  onMount(() => {
+    const initialExampleFromUrl = exampleQueries.find(q => q.query === getQueryParam('query'));
+    if (initialExampleFromUrl) {
+      applyExample(initialExampleFromUrl);
+      return;
+    }
+
+    const firstExample = exampleQueries[0];
+    if (!firstExample) return;
+
+    applyExample(firstExample);
+    void goto(alterQuery('query', firstExample.query), { replaceState: true });
+  });
 </script>
 
 <!-- ── Overwrite-protection modal ──────────────────────────────────────────── -->
