@@ -7,6 +7,7 @@ interface QueryDescription {
   name: string;
   query: string;
   mappings: MappingDescription[];
+  sources?: string[];
 }
 
 const identityMapping: MappingDescription = {
@@ -16,189 +17,90 @@ const identityMapping: MappingDescription = {
 
 export const exampleQueries: QueryDescription[] = [
   {
-    name: "Brad Pitt movies (default)",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+    name: 'Trustworthiness with RDF 1.2',
+    query: `VERSION "1.2"
+PREFIX geo:  <http://example.org/ontology/geo/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT ?movie ?title ?name
+SELECT ?territoryName
+       (COUNT(?claimant) AS ?claimantsCount)
+       (GROUP_CONCAT(?claimantName; separator=", ") AS ?claimants)
 WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-         rdfs:label ?title;
-         dbpedia-owl:director [ rdfs:label ?name ].
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?name),  "EN")
-}`,
+  << ?territory geo:partOf ?country >> prov:wasAttributedTo ?claimant .
+  ?claimant rdfs:label ?claimantName .
+  ?territory rdfs:label ?territoryName .
+}
+GROUP BY ?territoryName
+HAVING (COUNT(?claimant) > 1)
+ORDER BY DESC(?claimantsCount)`,
     mappings: [identityMapping],
-  },
-  {
-    name: "Movie cast — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?movie ?title ?actor ?actorName
-WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] ;
-         rdfs:label ?title ;
-         dbpedia-owl:starring ?actor .
-  ?actor rdfs:label ?actorName .
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?actorName), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'Film → ex:Movie',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?film a ex:Movie ; ex:title ?title }
-WHERE {
-  ?film a dbpedia-owl:Film ;
-        rdfs:label ?title .
-  FILTER LANGMATCHES(LANG(?title), "en")
-}`,
-      },
-      {
-        label: 'Actor → ex:Person',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Person ; ex:name ?name }
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-      {
-        label: 'Starring → ex:features',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?film ex:features ?actor }
-WHERE { ?film dbpedia-owl:starring ?actor }`,
-      },
+    sources: [
+      'https://raw.githubusercontent.com/rubensworks/rdf-12-examples/refs/heads/master/territories/data.ttl',
+      'https://fragments.dbpedia.org/2016-04/en',
     ],
   },
   {
-    name: "Director filmography — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    name: 'Exhaustive source selection (Bryan + Jitse co-authored with Ruben)',
+    query: `PREFIX schema: <http://schema.org/>
+PREFIX bibframe: <http://id.loc.gov/ontologies/bibframe/>
 
-SELECT ?film ?title ?director ?directorName
-WHERE {
-  ?film dbpedia-owl:director ?director ;
-        rdfs:label ?title .
-  ?director rdfs:label ?directorName .
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?directorName), "EN")
-} LIMIT 20`,
+SELECT * WHERE {
+  ?s schema:name ?name ;
+      a schema:ScholarlyArticle .
+}`,
     mappings: [
       {
-        label: 'ex:directedBy',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?film ex:directedBy ?director ; ex:title ?title }
+        label: 'Bryan identity',
+        query: `CONSTRUCT { ?s ?p ?o }
 WHERE {
-  ?film dbpedia-owl:director ?director ;
-        rdfs:label ?title .
-  FILTER LANGMATCHES(LANG(?title), "en")
+  SERVICE <https://constraint-automaton.pp.ua/publication.ttl> {
+    ?s ?p ?o .
+  }
 }`,
       },
       {
-        label: 'Director → ex:Director',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Director ; ex:name ?name }
+        label: 'Jitse identity',
+        query: `CONSTRUCT { ?s ?p ?o }
 WHERE {
-  ?person a dbpedia-owl:Person ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
+  SERVICE <https://jitsedesmet.be/profile#me> {
+    ?s ?p ?o .
+  }
+}`,
+      },
+      {
+        label: 'Ruben identity',
+        query: `CONSTRUCT { ?s ?p ?o }
+WHERE {
+  SERVICE <https://www.rubensworks.net/#me> {
+    ?s ?p ?o .
+  }
 }`,
       },
     ],
+    sources: [],
   },
   {
-    name: "Co-starring actors — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
+    name: 'Spam filter (keep trusted claimants only)',
+    query: `VERSION "1.2"
+PREFIX dbr:  <http://dbpedia.org/resource/>
+PREFIX geo:  <http://example.org/ontology/geo/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT DISTINCT ?name1 ?name2
+SELECT ?territoryName ?claimantName ?claimDate
 WHERE {
-  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
-  FILTER (?actor1 != ?actor2)
-  ?actor1 rdfs:label ?name1 .
-  ?actor2 rdfs:label ?name2 .
-  ?film dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] .
-  FILTER LANGMATCHES(LANG(?name1), "EN")
-  FILTER LANGMATCHES(LANG(?name2), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'ex:coStarredWith',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?actor1 ex:coStarredWith ?actor2 }
-WHERE {
-  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
-  FILTER (?actor1 != ?actor2)
-}`,
-      },
-      {
-        label: 'Actor name → ex:name',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?actor ex:name ?name }
-WHERE {
-  ?actor a dbpedia-owl:Actor ;
-         rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-    ],
-  },
-  {
-    name: "Actor birth dates — temporal mapping",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?name ?birthDate
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name ;
-          dbpedia-owl:birthDate ?birthDate .
-  FILTER LANGMATCHES(LANG(?name), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'Birth date → ex:born',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?person ex:born ?date }
-WHERE { ?person dbpedia-owl:birthDate ?date }`,
-      },
-      {
-        label: 'Actor → ex:Person',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Person ; ex:name ?name }
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
+  << dbr:Spratly_Islands geo:partOf ?country >> prov:wasAttributedTo ?claimant ;
+      geo:claimDate ?claimDate .
+  ?claimant rdfs:label ?claimantName .
+  dbr:Spratly_Islands rdfs:label ?territoryName .
+  FILTER (?claimant != dbr:Government_of_China)
+}
+ORDER BY ?claimDate`,
+    mappings: [identityMapping],
+    sources: [
+      'https://raw.githubusercontent.com/rubensworks/rdf-12-examples/refs/heads/master/territories/data.ttl',
+      'https://fragments.dbpedia.org/2016-04/en',
     ],
   },
 ];

@@ -85,6 +85,7 @@ WHERE {
   // ── Example loading ────────────────────────────────────────────────────────
   function applyExample(example: (typeof exampleQueries)[0]) {
     query = example.query;
+    selectedSources = example.sources ? [...example.sources] : selectedSources;
     const newMappings = example.mappings.map(m => ({ ...m, id: crypto.randomUUID() }));
     mappings = newMappings;
     baselineMappings = newMappings.map(m => ({ ...m }));
