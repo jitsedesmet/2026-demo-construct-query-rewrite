@@ -9,6 +9,10 @@
   }
   let { bindings, queryDone, queryCancelled = false }: Props = $props();
 
+  function toRdfPlayUrl(iri: string): string {
+    return `https://rdf-play.rubensworks.net/#url=${encodeURIComponent(iri)}`;
+  }
+
   function termToString(term: Term): string {
     switch (term.termType) {
       case "BlankNode":
@@ -42,7 +46,13 @@
           {#each [...binding].toSorted(([a], [b]) => a.value.localeCompare(b.value)) as [variable, term]}
             <div class="binding-row">
               <span class="var-badge">?{variable.value}</span>
-              <span class="term-value">{termToString(term)}</span>
+              <span class="term-value">
+                {#if term.termType === "NamedNode"}
+                  <a class="term-link" href={toRdfPlayUrl(term.value)} target="_blank" rel="noopener noreferrer">{termToString(term)}</a>
+                {:else}
+                  {termToString(term)}
+                {/if}
+              </span>
             </div>
           {/each}
         {/if}
@@ -105,6 +115,10 @@
     word-break: break-all;
     align-self: center;
     border-bottom: 1px solid #e1e4e8;
+  }
+
+  .term-link {
+    color: inherit;
   }
 
   .empty-binding {
