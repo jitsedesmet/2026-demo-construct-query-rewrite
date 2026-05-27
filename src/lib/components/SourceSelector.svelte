@@ -23,6 +23,9 @@
     { name: "Uniprot", url: "https://sparql.uniprot.org/sparql" },
     { name: "Rhea", url: "https://sparql.rhea-db.org/sparql" },
     { name: "Disputed Territories", url: "https://raw.githubusercontent.com/rubensworks/rdf-12-examples/refs/heads/master/territories/data.ttl" },
+    { name: "Bryan's publications", url: "https://constraint-automaton.pp.ua/publication.ttl" },
+    { name: "Jitse's profile", url: "https://jitsedesmet.be/profile#me" },
+    { name: "Ruben's profile (#me)", url: "https://www.rubensworks.net/#me" },
   ];
 
   interface Props {

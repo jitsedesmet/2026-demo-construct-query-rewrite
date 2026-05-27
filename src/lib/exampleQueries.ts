@@ -7,198 +7,151 @@ interface QueryDescription {
   name: string;
   query: string;
   mappings: MappingDescription[];
+  sources?: string[];
 }
 
 const identityMapping: MappingDescription = {
   label: 'Identity',
-  query: 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
+  query: 'CONSTRUCT WHERE { ?s ?p ?o }',
 };
 
+function identityOfSource(source: string) {
+  return `CONSTRUCT { ?s ?p ?o }
+WHERE { SERVICE <${source}> {
+  ?s ?p ?o .
+} }`
+}
+
+const papersExample: QueryDescription = {
+  name: 'Exhaustive Source Selection (articles of Bryan, Jitse and Ruben)',
+  query: `PREFIX schema: <http://schema.org/>
+PREFIX bibframe: <http://id.loc.gov/ontologies/bibframe/>
+SELECT * WHERE {
+  ?s schema:name ?name ;
+       a schema:ScholarlyArticle .
+}`,
+  mappings: [
+    {
+      label: 'Bryan',
+      query: identityOfSource('https://constraint-automaton.pp.ua/publication.ttl')
+    }, {
+      label: 'Jitse',
+      query: identityOfSource('https://jitsedesmet.be/profile#me')
+    }, {
+      label: 'Ruben T',
+      query: identityOfSource('https://www.rubensworks.net/#me')
+    }
+  ],
+  sources: [],
+};
+
+const wikidataExample: QueryDescription = {
+  name: 'Wikidata Reification',
+  query: `PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
+SELECT * WHERE {
+  << wd:Q31 wdt:P31 ?country >> # pq:P582 ?end
+}`,
+  mappings: [
+    {
+      label: 'Triple Term',
+      query: `PREFIX wikibase: <http://wikiba.se/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+CONSTRUCT {
+  ?t rdf:reifies <<( ?s ?wdt ?o )>>
+} WHERE {
+  ?s ?p ?t .
+  ?t ?ps ?o .
+  
+  ?wd wikibase:directClaim ?wdt ;
+          wikibase:claim ?p ;
+          wikibase:statementProperty ?ps . 
+}`,
+    },
+    identityMapping,
+  ],
+  sources: ['https://query.wikidata.org/sparql'],
+}
+
+
+const uniprotExample: QueryDescription = {
+  name: 'uniprot Reification',
+  query: `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX up:  <http://purl.uniprot.org/core/>
+PREFIX uniprotkb: <http://purl.uniprot.org/uniprot/>
+SELECT * WHERE {
+  << uniprotkb:P01308 up:annotation ?annotation >> up:attribution ?attribution .
+  ?attribution up:evidence ?evidence ;   # ECO code (e.g. ECO_0000269 = experimental)
+               up:source   ?source .     # citation / PubMed entry
+}
+LIMIT 1`,
+  mappings: [
+    {
+      label: 'Triple Term',
+      query: `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+CONSTRUCT {
+  ?t rdf:reifies <<( ?s ?p ?o)>> 
+} WHERE {
+  ?t a rdf:Statement; rdf:subject ?s ;
+  rdf:predicate ?p ; rdf:object ?o .
+}`
+    },
+    identityMapping
+  ],
+  sources: [
+    'https://sparql.uniprot.org/sparql'
+  ],
+}
+
+const filterExample: QueryDescription = {
+  name: 'Paper Filter Verborgh',
+  query: `PREFIX schema: <http://schema.org/>
+
+SELECT * WHERE {
+  ?s schema:name ?o
+}`,
+  mappings: [
+    {
+      label: 'Canonical Mapping: (Jitse + RT) \ RV',
+      query: `PREFIX schema: <http://schema.org/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+CONSTRUCT {
+  ?article ?p ?o .
+} WHERE {
+  { {
+    SERVICE <https://jitsedesmet.be/profile/#me> {
+      ?article a schema:ScholarlyArticle;
+               schema:name ?nameL ;
+               ?p ?o .
+      BIND(STR(?nameL) AS ?name).
+    }
+  } UNION {
+    SERVICE <https://www.rubensworks.net/publications/>  {
+      ?article a schema:ScholarlyArticle ;
+               schema:name ?nameL ;
+               ?p ?o .
+      BIND(STR(?nameL) AS ?name).
+    }
+  }} MINUS {
+    SERVICE <https://ruben.verborgh.org/profile/#me> {
+      ?srv a schema:ScholarlyArticle ;
+           rdfs:label ?nameLL ;
+           ?p ?o .
+      BIND(STR(?nameLL) AS ?name).
+    }
+  } 
+}`
+    },
+  ],
+  sources: [],
+}
+
 export const exampleQueries: QueryDescription[] = [
-  {
-    name: "Brad Pitt movies (default)",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?movie ?title ?name
-WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ];
-         rdfs:label ?title;
-         dbpedia-owl:director [ rdfs:label ?name ].
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?name),  "EN")
-}`,
-    mappings: [identityMapping],
-  },
-  {
-    name: "Movie cast — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?movie ?title ?actor ?actorName
-WHERE {
-  ?movie dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] ;
-         rdfs:label ?title ;
-         dbpedia-owl:starring ?actor .
-  ?actor rdfs:label ?actorName .
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?actorName), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'Film → ex:Movie',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?film a ex:Movie ; ex:title ?title }
-WHERE {
-  ?film a dbpedia-owl:Film ;
-        rdfs:label ?title .
-  FILTER LANGMATCHES(LANG(?title), "en")
-}`,
-      },
-      {
-        label: 'Actor → ex:Person',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Person ; ex:name ?name }
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-      {
-        label: 'Starring → ex:features',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?film ex:features ?actor }
-WHERE { ?film dbpedia-owl:starring ?actor }`,
-      },
-    ],
-  },
-  {
-    name: "Director filmography — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?film ?title ?director ?directorName
-WHERE {
-  ?film dbpedia-owl:director ?director ;
-        rdfs:label ?title .
-  ?director rdfs:label ?directorName .
-  FILTER LANGMATCHES(LANG(?title), "EN")
-  FILTER LANGMATCHES(LANG(?directorName), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'ex:directedBy',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?film ex:directedBy ?director ; ex:title ?title }
-WHERE {
-  ?film dbpedia-owl:director ?director ;
-        rdfs:label ?title .
-  FILTER LANGMATCHES(LANG(?title), "en")
-}`,
-      },
-      {
-        label: 'Director → ex:Director',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Director ; ex:name ?name }
-WHERE {
-  ?person a dbpedia-owl:Person ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-    ],
-  },
-  {
-    name: "Co-starring actors — virtual vocabulary",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?name1 ?name2
-WHERE {
-  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
-  FILTER (?actor1 != ?actor2)
-  ?actor1 rdfs:label ?name1 .
-  ?actor2 rdfs:label ?name2 .
-  ?film dbpedia-owl:starring [ rdfs:label "Brad Pitt"@en ] .
-  FILTER LANGMATCHES(LANG(?name1), "EN")
-  FILTER LANGMATCHES(LANG(?name2), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'ex:coStarredWith',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?actor1 ex:coStarredWith ?actor2 }
-WHERE {
-  ?film dbpedia-owl:starring ?actor1 , ?actor2 .
-  FILTER (?actor1 != ?actor2)
-}`,
-      },
-      {
-        label: 'Actor name → ex:name',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?actor ex:name ?name }
-WHERE {
-  ?actor a dbpedia-owl:Actor ;
-         rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-    ],
-  },
-  {
-    name: "Actor birth dates — temporal mapping",
-    query: `PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?name ?birthDate
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name ;
-          dbpedia-owl:birthDate ?birthDate .
-  FILTER LANGMATCHES(LANG(?name), "EN")
-} LIMIT 20`,
-    mappings: [
-      {
-        label: 'Birth date → ex:born',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-
-CONSTRUCT { ?person ex:born ?date }
-WHERE { ?person dbpedia-owl:birthDate ?date }`,
-      },
-      {
-        label: 'Actor → ex:Person',
-        query: `PREFIX ex: <http://example.org/>
-PREFIX dbpedia-owl: <http://dbpedia.org/ontology/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-CONSTRUCT { ?person a ex:Person ; ex:name ?name }
-WHERE {
-  ?person a dbpedia-owl:Actor ;
-          rdfs:label ?name .
-  FILTER LANGMATCHES(LANG(?name), "en")
-}`,
-      },
-    ],
-  },
+  wikidataExample,
+  papersExample,
+  uniprotExample,
+  filterExample
 ];
