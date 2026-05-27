@@ -1,9 +1,10 @@
-FROM node:latest AS builder
+FROM node:lts AS builder
 LABEL authors="jitsedesmet"
 
 WORKDIR /var/www/demo
-COPY **/package.json **/yarn.lock ./
+COPY package.json yarn.lock ./
 
+RUN corepack enable
 RUN yarn install --ignore-scripts
 
 COPY . .

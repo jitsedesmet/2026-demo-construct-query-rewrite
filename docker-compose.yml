@@ -4,5 +4,9 @@ services:
     build:
       context: .
       network: host
+    develop:
+      watch:
+        - action: rebuild
+          path: .
     ports:
       - "3000:3000"
