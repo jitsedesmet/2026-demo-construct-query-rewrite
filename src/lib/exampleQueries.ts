@@ -83,9 +83,9 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX up:  <http://purl.uniprot.org/core/>
 PREFIX uniprotkb: <http://purl.uniprot.org/uniprot/>
 SELECT * WHERE {
-  << uniprotkb:P01308 up:annotation ?annotation >> up:attribution ?attribution .
-  ?attribution up:evidence ?evidence ;   # ECO code (e.g. ECO_0000269 = experimental)
-               up:source   ?source .     # citation / PubMed entry
+  << uniprotkb:P01308 up:annotation ?annotation >> # up:attribution ?attribution .
+  # ?attribution up:evidence ?evidence ;   # ECO code (e.g. ECO_0000269 = experimental)
+  #              up:source   ?source .     # citation / PubMed entry
 }
 LIMIT 1`,
   mappings: [
