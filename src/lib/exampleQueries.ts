@@ -111,7 +111,8 @@ const filterExample: QueryDescription = {
   query: `PREFIX schema: <http://schema.org/>
 
 SELECT * WHERE {
-  ?s schema:name ?o
+  ?s schema:name ?o ;
+     a schema:ScholarlyArticle .
 }`,
   mappings: [
     {
