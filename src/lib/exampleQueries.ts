@@ -33,7 +33,10 @@ SELECT * WHERE {
   mappings: [
     {
       label: 'Bryan',
-      query: identityOfSource('https://constraint-automaton.pp.ua/publication.ttl')
+      query: `CONSTRUCT { ?s ?p ?o }
+WHERE { SERVICE SILENT <https://constraint-automaton.pp.ua/publication.ttl> {
+  ?s ?p ?o .
+} }`
     }, {
       label: 'Jitse',
       query: identityOfSource('https://jitsedesmet.be/profile#me')
