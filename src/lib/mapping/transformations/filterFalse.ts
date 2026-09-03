@@ -1,33 +1,24 @@
 import { Algebra, algebraUtils } from '@traqula/algebra-transformations-1-2';
 import type { TransformContext } from '../transformContext.js';
-import { createFilterFalse, isFilterFalse, termFalse } from '../utils.js';
+import { createFilterFalse, isFilterFalse, termFalse } from '../utils/operationhelpers.js';
 
 /**
  * @fileoverview FILTER(FALSE) simplification transformation.
  *
- * In SPARQL algebra, FILTER(FALSE) represents an empty result set.
- * This module provides transformations that simplify algebra expressions
- * containing FILTER(FALSE) based on algebraic identities:
- *
- * - **UNION identity**: FILTER(FALSE) can be removed from unions
- * - **JOIN absorbing**: Any JOIN containing FILTER(FALSE) is FILTER(FALSE)
- * - **Single operations**: Operations over FILTER(FALSE) propagate emptiness
- *
- * @see https://www.w3.org/TR/sparql11-query/#sparqlSimplification
+ * In SPARQL algebra `FILTER(FALSE)` represents the empty solution multiset, so the operations around one
+ * simplify by the algebraic identities of that multiset - absorbing for JOIN, identity for UNION.
  */
 
 /**
- * Simplifies algebra by removing or propagating FILTER(FALSE) patterns.
+ * Simplifies algebra by removing or propagating `FILTER(FALSE)` patterns:
  *
- * This transformation applies the following rules:
- * - JOIN over FILTER(FALSE) → FILTER(FALSE) (absorbing element)
- * - UNION over FILTER(FALSE) → removes that branch (identity element)
- * - EXTEND/DISTINCT/etc. over FILTER(FALSE) → FILTER(FALSE)
- * - MINUS/LEFTJOIN where right is FILTER(FALSE) → left operand
- *
+ * - JOIN over FILTER(FALSE) becomes FILTER(FALSE) (absorbing element)
+ * - UNION over FILTER(FALSE) drops that branch (identity element)
+ * - EXTEND/DISTINCT/etc. over FILTER(FALSE) becomes FILTER(FALSE)
+ * - MINUS/LEFT JOIN whose right operand is FILTER(FALSE) becomes its left operand
  * @param c - The transformation context
  * @param op - The operation to transform
- * @returns The simplified operation
+ * @returns the simplified operation
  */
 export function transformFilterFalse(c: TransformContext, op: Algebra.Operation): Algebra.Operation {
   const absorbSingle = { transform: (x: Algebra.Single): Algebra.Single => absorbingSingle(c, x) };
@@ -41,6 +32,7 @@ export function transformFilterFalse(c: TransformContext, op: Algebra.Operation)
       [Algebra.Types.FROM]: absorbSingle,
       [Algebra.Types.DISTINCT]: absorbSingle,
       [Algebra.Types.FILTER]: absorbSingle,
+      // TODO: wrong in case of silent!!!
       [Algebra.Types.SERVICE]: absorbSingle,
       [Algebra.Types.REDUCED]: absorbSingle,
       [Algebra.Types.SLICE]: absorbSingle,
@@ -63,21 +55,25 @@ export function transformFilterFalse(c: TransformContext, op: Algebra.Operation)
         }
         return leftJoin;
       } },
+      [Algebra.Types.VALUES]: { transform: (values) => {
+        if (values.bindings.length === 0) {
+          return createFilterFalse(c);
+        }
+        return values;
+      } },
       // TODO: the projection of an empty query is the empty query (if not outer project)
-      // TODO: expression, minus, leftjoin, group? of empty is empty
       // TODO: exists and not exists
     },
   );
 }
 
 /**
- * Handles single-input operations over FILTER(FALSE).
- * Any operation over an empty input produces an empty result.
+ * Handles single-input operations over `FILTER(FALSE)`: any operation over an empty input is empty.
  * @param c - The transformation context
  * @param single - A single-input operation
- * @returns FILTER(FALSE) if input is empty, otherwise the original operation
+ * @returns FILTER(FALSE) if the input is empty, otherwise the original operation
  */
-export function absorbingSingle(
+function absorbingSingle(
   c: TransformContext,
   single: Algebra.Single,
 ): Algebra.Single {
@@ -88,13 +84,12 @@ export function absorbingSingle(
 }
 
 /**
- * JOIN is an absorbing operation for FILTER(FALSE).
- * If any operand is FILTER(FALSE), the entire JOIN is FILTER(FALSE).
+ * JOIN is absorbing for `FILTER(FALSE)`: one empty operand makes the whole join empty.
  * @param c - The transformation context
  * @param join - The JOIN operation
  * @returns FILTER(FALSE) if any input is empty, otherwise the original JOIN
  */
-export function absorbJoinOnEmptyBindings(c: TransformContext, join: Algebra.Join): Algebra.Join | Algebra.Filter {
+function absorbJoinOnEmptyBindings(c: TransformContext, join: Algebra.Join): Algebra.Join | Algebra.Filter {
   for (const op of join.input) {
     if (isFilterFalse(c, op)) {
       return createFilterFalse(c);
@@ -105,6 +100,7 @@ export function absorbJoinOnEmptyBindings(c: TransformContext, join: Algebra.Joi
 
 /**
  * Type guard for checking if a value is an Algebra operation of a specific type.
+ * @returns whether it has that type
  */
 function isAlgebraTyped<T extends string>(val: { type: unknown }, type: T):
 val is Extract<Algebra.Operation, { type: T }> extends object ?
@@ -113,17 +109,13 @@ val is Extract<Algebra.Operation, { type: T }> extends object ?
 }
 
 /**
- * FILTER(FALSE) is the identity element for UNION.
- * Removes FILTER(FALSE) branches from unions and handles edge cases.
- *
+ * `FILTER(FALSE)` is the identity element for UNION, so its branches are dropped.
  * @param c - The transformation context
  * @param union - The UNION operation
- * @returns Simplified operation:
- *   - If all branches are FILTER(FALSE): returns FILTER(FALSE)
- *   - If one branch remains: returns that branch
- *   - Otherwise: returns UNION with empty branches removed
+ * @returns FILTER(FALSE) when every branch was empty, the single remaining branch when one is left, and the
+ * UNION without its empty branches otherwise
  */
-export function pruneUnionOfEmptyBindings(c: TransformContext, union: Algebra.Union): Algebra.Operation {
+function pruneUnionOfEmptyBindings(c: TransformContext, union: Algebra.Union): Algebra.Operation {
   // Filter out filterFalse
   union.input = union.input.filter((maybeFilter: Algebra.Operation | { type: string }) => {
     if (isAlgebraTyped(maybeFilter, Algebra.Types.FILTER) &&
