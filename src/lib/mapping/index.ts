@@ -32,10 +32,15 @@ import {
  * behind (a pattern no mapping can produce, a UNION branch pruned by an assertion), and collapsing those
  * before the next pass keeps the plan that pass has to reason over small.
  *
- * `removeProjections` runs last, and only there: the passes above read the sub-SELECTs the rewriting nests
+ * `removeProjections` runs late, and only there: the passes above read the sub-SELECTs the rewriting nests
  * as the scoping barriers they are, so flattening them earlier would take that away. Afterwards nothing
  * needs them, and one flat query is both what a reader of the demo wants to see and what an endpoint can
  * plan over.
+ *
+ * `pullUpExtends` then runs a second time, on what the flattening opened up. Its first run floats a `BIND`
+ * no further than the projection above it, that being where the name it binds stops existing; with those
+ * projections gone the same binds can travel on - and a bind that arrives somewhere nothing reads it is
+ * one the pass deletes.
  */
 const TRANSFORMATIONS: ((c: TransformContext, op: Algebra.Operation) => Algebra.Operation)[] = [
   transformFilterFalse,
@@ -45,6 +50,7 @@ const TRANSFORMATIONS: ((c: TransformContext, op: Algebra.Operation) => Algebra.
   transformFilterFalse,
   pullUpExtends,
   removeProjections,
+  pullUpExtends,
 ];
 
 /**
