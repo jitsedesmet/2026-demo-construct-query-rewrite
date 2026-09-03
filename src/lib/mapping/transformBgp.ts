@@ -35,9 +35,9 @@ function hasGroupInTopLevelChain(op: Algebra.Operation): boolean {
  * Transforms a SPARQL query by applying the configured mappings and transformations - the main entry point
  * for query rewriting.
  *
- * It parses the query, strips any outer DISTINCT/REDUCED and the Project, prefixes the user query variables
- * with `uq_`, applies each transformation in order, and then wraps the result back up: an EXTEND per
- * original variable name, the Project, and the stripped modifier.
+ * It parses the query, strips the outer solution modifiers and the Project, prefixes the user query
+ * variables with `uq_`, applies each transformation in order, and then wraps the result back up: an EXTEND
+ * per original variable name, the Project, and the modifiers it stripped, in the order it took them off.
  * @param c - The transformation context containing the mapping and the factories
  * @param input - The SPARQL query string to transform
  * @param transformations - Transformation functions to apply in order
@@ -52,11 +52,15 @@ export function queryTransform(
 ): string {
   const algebra = parseQuery(c, input);
 
-  // Peel off a DISTINCT or REDUCED modifier so we can reach the inner Project.
-  // SELECT DISTINCT/REDUCED produce Distinct/Reduced(Project(...)) in the algebra.
-  const isDistinct = algebra.type === 'distinct';
-  const isReduced = algebra.type === 'reduced';
-  const innerAlgebra: Algebra.Operation = (isDistinct || isReduced) ? algebra.input : algebra;
+  // Peel the solution modifiers off so we can reach the inner Project. A LIMIT or OFFSET is the outermost
+  // of them - `SELECT DISTINCT ... LIMIT n` is Slice(Distinct(Project(...))) - so it comes off first and
+  // goes back on last. Missing it leaves the Project out of reach, and then the whole renaming below is
+  // skipped and the query answers in `uq_` variables.
+  const slice = algebra.type === Algebra.Types.SLICE ? algebra : undefined;
+  const modified: Algebra.Operation = slice === undefined ? algebra : slice.input;
+  const isDistinct = modified.type === 'distinct';
+  const isReduced = modified.type === 'reduced';
+  const innerAlgebra: Algebra.Operation = (isDistinct || isReduced) ? modified.input : modified;
 
   let transformedAlgebra = innerAlgebra;
   if (innerAlgebra.type === 'project') {
@@ -91,6 +95,9 @@ export function queryTransform(
     transformedAlgebra = c.AF.createDistinct(transformedAlgebra);
   } else if (isReduced) {
     transformedAlgebra = c.AF.createReduced(transformedAlgebra);
+  }
+  if (slice !== undefined) {
+    transformedAlgebra = c.AF.createSlice(transformedAlgebra, slice.start, slice.length);
   }
 
   const transformedAst = toAst(transformedAlgebra);

@@ -34,6 +34,22 @@ export const predicateRange = new RangeSet([ 'NamedNode' ]);
 export const objectRange = new RangeSet([ 'Quad', 'NamedNode', 'BlankNode', 'Literal' ]);
 
 /**
+ * The term types a *source* holds in the object position of a triple: {@link objectRange} without `Quad`.
+ *
+ * The mappings say how RDF 1.2 is represented in the RDF 1.1 the sources actually store, and no RDF 1.1
+ * triple holds a triple term anywhere. So a pattern matched against a source binds no triple term either,
+ * and that is the one thing telling a mapping variable that reads the data apart from a head variable a
+ * `BIND` hands a `<<( … )>>` to - the two being indistinguishable once several mappings are merged into
+ * one generic `?m_s ?m_p ?m_o` head.
+ *
+ * Read by {@link utils/certainlyBoundVars!VRanges} for the leaves that match data, which is what makes the
+ * assertion pushdown answer a triple term asserted of such a variable with `FILTER(FALSE)` - the branch
+ * really does match nothing - rather than write the triple term into a pattern and send SPARQL 1.2 to a
+ * source that only speaks SPARQL 1.1.
+ */
+export const sourceObjectRange = new RangeSet([ 'NamedNode', 'BlankNode', 'Literal' ]);
+
+/**
  * The term types a graph name admits: NamedNodes and BlankNodes.
  *
  * The SPARQL grammar only allows an IRI to be written in a `GRAPH` clause, but a variable there (`GRAPH

@@ -18,7 +18,12 @@ import type { Algebra } from '@traqula/algebra-transformations-1-2';
 import { operationTransform, queryTransform } from './transformBgp.js';
 import type { TransformContext } from './transformContext.js';
 import { transformContextFromConstructs } from './transformContext.js';
-import { pullUpExtends, pushDownAssertions, transformFilterFalse } from './transformations/index.js';
+import {
+  pullUpExtends,
+  pushDownAssertions,
+  removeProjections,
+  transformFilterFalse,
+} from './transformations/index.js';
 
 /**
  * The pipeline the demo runs, in order.
@@ -26,6 +31,16 @@ import { pullUpExtends, pushDownAssertions, transformFilterFalse } from './trans
  * `transformFilterFalse` is interleaved between the heavier passes: each of them can leave `FILTER(FALSE)`
  * behind (a pattern no mapping can produce, a UNION branch pruned by an assertion), and collapsing those
  * before the next pass keeps the plan that pass has to reason over small.
+ *
+ * `removeProjections` runs late, and only there: the passes above read the sub-SELECTs the rewriting nests
+ * as the scoping barriers they are, so flattening them earlier would take that away. Afterwards nothing
+ * needs them, and one flat query is both what a reader of the demo wants to see and what an endpoint can
+ * plan over.
+ *
+ * `pullUpExtends` then runs a second time, on what the flattening opened up. Its first run floats a `BIND`
+ * no further than the projection above it, that being where the name it binds stops existing; with those
+ * projections gone the same binds can travel on - and a bind that arrives somewhere nothing reads it is
+ * one the pass deletes.
  */
 const TRANSFORMATIONS: ((c: TransformContext, op: Algebra.Operation) => Algebra.Operation)[] = [
   transformFilterFalse,
@@ -33,6 +48,8 @@ const TRANSFORMATIONS: ((c: TransformContext, op: Algebra.Operation) => Algebra.
   transformFilterFalse,
   pushDownAssertions,
   transformFilterFalse,
+  pullUpExtends,
+  removeProjections,
   pullUpExtends,
 ];
 

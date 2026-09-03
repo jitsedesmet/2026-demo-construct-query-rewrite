@@ -8,6 +8,7 @@ import {
   predicateRange,
   RangeSet,
   serviceNameRange,
+  sourceObjectRange,
   subjectRange,
   tripleTermRange,
 } from '../RangeSet.js';
@@ -156,6 +157,9 @@ function narrowTermRanges(target: VRanges, term: RDF.Term, range: RangeSet): voi
 
 /**
  * The ranges a single quad pattern imposes on the variables it holds, which are exactly its scope.
+ *
+ * The object position takes {@link sourceObjectRange} rather than the {@link objectRange} the position
+ * admits in the abstract: a pattern is matched against a source, and a source holds RDF 1.1.
  * @returns its ranges
  */
 function patternRanges(pattern: { subject: RDF.Term; predicate: RDF.Term; object: RDF.Term; graph: RDF.Term }):
@@ -163,7 +167,7 @@ VRanges {
   const result = new VRanges();
   narrowTermRanges(result, pattern.subject, subjectRange);
   narrowTermRanges(result, pattern.predicate, predicateRange);
-  narrowTermRanges(result, pattern.object, objectRange);
+  narrowTermRanges(result, pattern.object, sourceObjectRange);
   narrowTermRanges(result, pattern.graph, graphRange);
   return result;
 }
@@ -278,10 +282,14 @@ export function withCpVars<T extends Algebra.Operation>(op: T): CPOp<T> {
     } case Types.PATH: {
       const vars = unionSets([ resOp.subject, resOp.object, resOp.graph ].map(termVars));
       resOp.metadata.cVars = vars;
-      // A path says nothing about the type of its endpoints - `?lit ^:p ?s` legitimately starts at a
-      // literal, and a zero-length path returns whatever the other end held - so only the graph narrows.
+      // A path says nothing about *which* type its endpoints have - `?lit ^:p ?s` legitimately starts at
+      // a literal, and a zero-length path returns whatever the other end held - so neither takes the
+      // range of a position. What it does say is that they are terms a source holds, and a source holds
+      // RDF 1.1: {@link sourceObjectRange} is the top for both, as it is for a pattern.
       const ranges = new VRanges();
-      ranges.addAtTop(vars);
+      for (const name of vars) {
+        ranges.narrow(name, sourceObjectRange);
+      }
       for (const name of termVars(resOp.graph)) {
         ranges.narrow(name, graphRange);
       }
