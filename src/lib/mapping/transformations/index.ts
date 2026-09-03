@@ -13,9 +13,12 @@
  * - **pullUpExtends**: the mirror of the pushdown, floating the `BIND`s it left behind at the leaves back up
  *   the plan and deleting the ones nothing above reads - a UNION every branch of which carries the same
  *   bind included.
+ * - **removeProjections**: flattens the sub-SELECTs the rewriting nests, renaming what each of them hid to
+ *   a fresh name so that dropping it leaks nothing into the scope around it.
  * @module transformations
  */
 export { transformFilterFalse } from './filterFalse.js';
 export { rewriteSinglePattern } from './rewriteSinglePattern.js';
 export { pushDownAssertions } from './pushDownAssertions.js';
 export { pullUpExtends } from './pullUpExtends.js';
+export { removeProjections } from './removeProjections.js';
