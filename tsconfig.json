@@ -9,6 +9,10 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
+		// The vendored src/lib/mapping is a copy of https://github.com/jitsedesmet/2025-query-rewriting-1-2,
+		// whose own tsconfig turns this off; its cluster data structures initialise their fields from
+		// reset() helpers the constructor calls rather than inline.
+		"strictPropertyInitialization": false,
 		"moduleResolution": "bundler"
 	}
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
