@@ -21,7 +21,7 @@
     queryRunning?: boolean;
     queryStartTime?: number;
     queryCancelled?: boolean;
-    rewrittenQuery?: string;
+    /** Rewrites the query into the SPARQL 1.1 one that is actually executed. */
     rewrite?: (query: string) => string;
     sources?: string[];
   }
@@ -32,7 +32,6 @@
     queryRunning = $bindable(false),
     queryStartTime = $bindable(0),
     queryCancelled = $bindable(false),
-    rewrittenQuery = $bindable(''),
     rewrite = (q) => q,
     sources = ["https://fragments.dbpedia.org/2016-04/en"],
   }: Props = $props();
@@ -86,8 +85,7 @@
         queryCancelled = false;
         queryStartTime = Date.now();
 
-        rewrittenQuery = rewrite(query);
-        const bindingStream = await engine.queryBindings(rewrittenQuery, { sources: querySources });
+        const bindingStream = await engine.queryBindings(rewrite(query), { sources: querySources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;

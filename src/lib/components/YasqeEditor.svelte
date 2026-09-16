@@ -34,6 +34,24 @@
 
     if (initialProps.query) inst.setValue(initialProps.query);
 
+    // CodeMirror measures the height of its box once and then works from that. Nothing tells it when the
+    // flex layout around it hands it a different one - the step slider appearing above it, a step caption
+    // wrapping to one line more - and a measurement that is too tall clips the query at the bottom without
+    // ever showing a scrollbar, the editor believing all of it fits. Yasqe calls refresh() after its own
+    // drag-resize for exactly this reason; this does it for the resizes Yasqe does not know about.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const refresh = () => (inst as any).refresh();
+    let pendingRefresh: number | undefined;
+    const refreshNextFrame = () => {
+      if (pendingRefresh !== undefined) cancelAnimationFrame(pendingRefresh);
+      pendingRefresh = requestAnimationFrame(() => {
+        pendingRefresh = undefined;
+        refresh();
+      });
+    };
+    const resizeObserver = new ResizeObserver(refresh);
+    resizeObserver.observe(element);
+
     // Disable query execution — this component is a pure editor
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (inst as any).query = async () => {};
@@ -48,9 +66,14 @@
       update(newProps) {
         if (newProps.query !== undefined && newProps.query !== inst.getValue()) {
           inst.setValue(newProps.query);
+          // A longer step can turn the editor from one that fits into one that scrolls; re-measure once
+          // the new value has been laid out.
+          refreshNextFrame();
         }
       },
       destroy() {
+        resizeObserver.disconnect();
+        if (pendingRefresh !== undefined) cancelAnimationFrame(pendingRefresh);
         inst.destroy();
       },
     };
@@ -70,6 +93,10 @@
 
   .yasqe-editor-wrap :global(.yasqe) {
     height: 100%;
+    /* Yasqe puts its drag-to-resize handle inside this element, below the editor. A column flex box is
+       what lets the editor give up those 10px instead of overflowing by them. */
+    display: flex;
+    flex-direction: column;
   }
 
   .yasqe-editor-wrap :global(.yasqe_queryButton),

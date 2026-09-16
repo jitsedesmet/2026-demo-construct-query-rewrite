@@ -2,8 +2,14 @@
   import Yasge from "$lib/components/Yasge.svelte";
   import YasqeEditor from "$lib/components/YasqeEditor.svelte";
   import MappingEditor from "$lib/components/MappingEditor.svelte";
-  import type { Mapping } from "$lib/mapping";
-  import { DEFAULT_MAPPING_QUERY, DEFAULT_MAPPING_LABEL, transformQueryUsingConstructs } from "$lib/mapping";
+  import PipelineSlider from "$lib/components/PipelineSlider.svelte";
+  import type { Mapping, RewriteStage } from "$lib/mapping";
+  import {
+    DEFAULT_MAPPING_QUERY,
+    DEFAULT_MAPPING_LABEL,
+    transformQueryStages,
+    transformQueryUsingConstructs,
+  } from "$lib/mapping";
   import QueryResults from "$lib/components/QueryResults.svelte";
   import SourceSelector from "$lib/components/SourceSelector.svelte";
   import type {Bindings} from "@rdfjs/types";
@@ -51,7 +57,37 @@ WHERE {
   FILTER LANGMATCHES(LANG(?name),  "EN")
 }`;
   let query = $state<string>(getQueryParam('query') ?? defaultQuery);
-  let rewrittenQuery = $state<string>('');
+  /** The query after every step of the rewriting pipeline. */
+  let rewriteStages = $state<RewriteStage[]>([]);
+  /** The step the slider sits on; a fresh rewrite lands on the last one, the query that gets executed. */
+  let stageIndex = $state(0);
+  let rewrittenQuery = $derived(rewriteStages[stageIndex]?.query ?? '');
+
+  /**
+   * Keep the steps in sync with the query and the mappings, so that the panel is filled from the first
+   * screen on rather than only once a query has been run.
+   *
+   * Off the main thread of the update, and debounced: the mapping editors write on every keystroke, and
+   * walking the whole pipeline costs a few hundred milliseconds. A rewrite that throws - a half-typed
+   * mapping, a query the rewriting rejects - leaves the last steps standing, and the error itself surfaces
+   * where it did before, on execute.
+   */
+  $effect(() => {
+    const currentQuery = query;
+    const mapperQueries = mappings.map(m => m.query);
+    const id = setTimeout(() => {
+      try {
+        rewriteStages = transformQueryStages(currentQuery, mapperQueries);
+      } catch {
+        // Keep whatever the last query that did rewrite left behind.
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  });
+
+  $effect(() => {
+    stageIndex = Math.max(rewriteStages.length - 1, 0);
+  });
   let bindings = $state<Bindings[]>([]);
   let queryDone = $state(false);
   let queryRunning = $state(false);
@@ -91,7 +127,7 @@ WHERE {
     mappings = newMappings;
     baselineMappings = newMappings.map(m => ({ ...m }));
     // Clear any stale execution state from the previous query
-    rewrittenQuery = '';
+    rewriteStages = [];
     bindings = [];
     queryDone = false;
     queryCancelled = false;
@@ -236,7 +272,10 @@ WHERE {
 
       <!-- Rewritten query section -->
       <section class="config-section rewritten-section">
-        <h2>Rewritten query <span class="section-hint">(read-only, populated on execute)</span></h2>
+        <h2>Rewritten query <span class="section-hint">(read-only)</span></h2>
+        {#if rewriteStages.length > 0}
+          <PipelineSlider stages={rewriteStages} bind:index={stageIndex} />
+        {/if}
         <YasqeEditor query={rewrittenQuery} readonly />
       </section>
 
@@ -277,7 +316,6 @@ WHERE {
           bind:queryRunning
           bind:queryStartTime
           bind:queryCancelled
-          bind:rewrittenQuery
           rewrite={(q) => transformQueryUsingConstructs(q, mappings.map(m => m.query))}
           sources={selectedSources}
         />
@@ -379,6 +417,10 @@ WHERE {
   .config-section {
     flex: 1;
     min-height: 0;
+    /* The flexed height of these is what the panel has room for, so it has to be the height of the whole
+       box: without this the padding and the border are added *on top* of it, and the two sections together
+       hang ~32px below a panel that is sticky, putting the bottom of the editor out of reach. */
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
