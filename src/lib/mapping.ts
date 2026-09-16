@@ -7,5 +7,6 @@ export interface Mapping {
 export const DEFAULT_MAPPING_QUERY = 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }';
 export const DEFAULT_MAPPING_LABEL = 'Identity';
 
-export { transformQueryUsingConstructs } from './mapping/index';
+export type { RewriteStage } from './mapping/index';
+export { transformQueryStages, transformQueryUsingConstructs } from './mapping/index';
 
