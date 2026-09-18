@@ -85,7 +85,15 @@
         queryCancelled = false;
         queryStartTime = Date.now();
 
-        const bindingStream = await engine.queryBindings(await rewrite(query), { sources: querySources });
+        // Rewriting is asynchronous and takes a few hundred milliseconds, which is long enough for Stop
+        // to be pressed inside it. Nothing has been dispatched yet at that point, so there is no stream
+        // for cancelQuery() to destroy - the check has to happen here, or the query goes out anyway and
+        // streams on with the UI reading "stopped".
+        const rewritten = await rewrite(query);
+        if (thisAbortController.signal.aborted) {
+          return;
+        }
+        const bindingStream = await engine.queryBindings(rewritten, { sources: querySources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;
