@@ -5,30 +5,9 @@ import { fileURLToPath } from 'url';
 const diagnosticsChannelShim = fileURLToPath(
   new URL('./src/shims/diagnostics-channel.js', import.meta.url),
 );
-const staticExpressionEvaluationShim = fileURLToPath(
-  new URL('./src/shims/static-expression-evaluation.js', import.meta.url),
-);
-
-/**
- * Replaces sparql-view-unfold's Comunica-backed expression folding by a stub that throws.
- *
- * The package re-exports the pass from its barrel, so it lands in the graph whatever the demo imports,
- * and it bootstraps Components.js from Node's module resolution - which a browser build cannot link.
- * The demo's pipeline never runs it; this keeps it, and Components.js with it, out of the bundle.
- */
-const stubStaticExpressionEvaluation = {
-  name: 'stub-sparql-view-unfold-static-expression-evaluation',
-  enforce: 'pre' as const,
-  resolveId(source: string, importer: string | undefined): string | undefined {
-    if (source.endsWith('staticExpressionEvaluation.js') && importer?.includes('sparql-view-unfold')) {
-      return staticExpressionEvaluationShim;
-    }
-    return undefined;
-  },
-};
 
 export default defineConfig({
-  plugins: [stubStaticExpressionEvaluation, sveltekit()],
+  plugins: [sveltekit()],
   server: {
     fs: {
       // The sparql-view-unfold workspace is a symlink into a sibling checkout, so Vite resolves its files
