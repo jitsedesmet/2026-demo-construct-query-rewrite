@@ -6812,10 +6812,10 @@ spark-md5@^3.0.1:
   resolved "https://registry.yarnpkg.com/spark-md5/-/spark-md5-3.0.2.tgz#7952c4a30784347abcee73268e473b9c0167e3fc"
   integrity sha512-wcFzz9cDfbuqe0FZzfi2or1sgyIrsDwmPwfZC4hiNidPdPINjeUwNfv5kldczoEAcjl9Y1L3SM7Uz2PUEQzxQw==
 
-sparql-view-unfold@^0.0.0-alpha.1:
-  version "0.0.0-alpha.1"
-  resolved "https://registry.yarnpkg.com/sparql-view-unfold/-/sparql-view-unfold-0.0.0-alpha.1.tgz#27071b9e0ed2bb46665323da84f703a84155e59f"
-  integrity sha512-VmvqmV7GvDtPv01F45MbUaVCoUz6OVouATtvZUvEnT5tegPU0ru2CUYjUmPE5hCt7tfXSYmA/Md2fwbu4tRscw==
+sparql-view-unfold@^0.0.0:
+  version "0.0.0"
+  resolved "https://registry.yarnpkg.com/sparql-view-unfold/-/sparql-view-unfold-0.0.0.tgz#779618f9d7898d39ddc5ee058fd6384f3d52e56b"
+  integrity sha512-PkyUlAfXrxMNWNOuX8OyHbzgiQ2Xikot29KYzZ1vEk8Ba+bhoGwVcr8wzCiSnH3iuNyNCklWuRQloYMTXqU7Nw==
   dependencies:
     "@comunica/bus-expression-evaluator-factory" "^5.4.0"
     "@comunica/config-query-sparql" "^5.4.0"

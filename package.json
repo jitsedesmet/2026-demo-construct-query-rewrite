@@ -37,6 +37,6 @@
     "@traqula/algebra-transformations-1-2": "^1.3.1",
     "highlight.js": "^11.11.1",
     "rdf-data-factory": "^2.0.2",
-    "sparql-view-unfold": "^0.0.0-alpha.1"
+    "sparql-view-unfold": "^0.0.0"
   }
 }
