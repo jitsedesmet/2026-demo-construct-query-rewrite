@@ -28,6 +28,25 @@ import { nullifyTripleTermsFromSourceTransformation } from './rdf11Source.js';
  */
 
 /**
+ * The knobs of the rewriting the demo lets the reader turn, both of them defaults of the package the
+ * rewriting comes from rather than of the demo.
+ */
+export interface RewriteOptions {
+  /**
+   * Whether the unfolded query counts a triple two solutions of a mapping body both produce once, the way
+   * the mapped graph - a set - does, rather than twice. Costly: it deduplicates the body of every unfolded
+   * pattern.
+   */
+  preserveCardinality?: boolean;
+  /**
+   * Whether the graph the mappings denote is a *generalized* RDF graph, one admitting a literal as a
+   * subject and a blank node as a predicate. Off, a head variable the body could bind outside its
+   * position's range costs a type test; on, those solutions keep their triples.
+   */
+  generalizedRdfView?: boolean;
+}
+
+/**
  * One pass of the pipeline, together with how the demo names it in the step slider.
  */
 interface Pass {
@@ -55,10 +74,11 @@ interface Pass {
  * reads each join operand's top-level `EXTEND` chain and halts at a `PROJECT`, so anywhere earlier it sees
  * nothing at all.
  * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
+ * @param options - What the mapping and the unfolding are configured with
  * @returns the passes, in the order they run
  */
-function passesOver(mappers: readonly string[]): Pass[] {
-  const mapping = mappingFromConstructQueries(mappers);
+function passesOver(mappers: readonly string[], options: RewriteOptions = {}): Pass[] {
+  const mapping = mappingFromConstructQueries(mappers, { generalizedRdfView: options.generalizedRdfView });
   return [
     {
       label: 'Expand paths',
@@ -68,7 +88,7 @@ function passesOver(mappers: readonly string[]): Pass[] {
     {
       label: 'Unfold mappings',
       description: 'Replaces every triple pattern by a UNION of sub-SELECTs, one per mapping that could produce it.',
-      apply: unfoldingTransformation(mapping),
+      apply: unfoldingTransformation(mapping, { preserveCardinality: options.preserveCardinality }),
     },
     {
       label: 'Prune empty',
@@ -134,13 +154,15 @@ export interface RewriteStage {
  * Rewrites a user query against the mappings given as SPARQL CONSTRUCT strings.
  * @param userQuery - The SPARQL 1.2 query to rewrite
  * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
+ * @param options - What the mapping and the unfolding are configured with
  * @returns the rewritten SPARQL 1.1 query
  */
 export async function transformQueryUsingConstructs(
   userQuery: string,
   mappers: readonly string[],
+  options: RewriteOptions = {},
 ): Promise<string> {
-  const rewriter = createQueryRewriter(passesOver(mappers).map(pass => pass.apply));
+  const rewriter = createQueryRewriter(passesOver(mappers, options).map(pass => pass.apply));
   return (await rewriter.rewriteQuery(userQuery)).trim();
 }
 
@@ -158,14 +180,16 @@ export async function transformQueryUsingConstructs(
  * it stay reachable.
  * @param userQuery - The SPARQL 1.2 query to rewrite
  * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
+ * @param options - What the mapping and the unfolding are configured with
  * @returns the original query, the parsed query, and the query after each pass
  */
 export async function transformQueryStages(
   userQuery: string,
   mappers: readonly string[],
+  options: RewriteOptions = {},
 ): Promise<RewriteStage[]> {
   // Run the whole pipeline first: if the rewriting fails, it fails the way it does without the slider.
-  const finalQuery = await transformQueryUsingConstructs(userQuery, mappers);
+  const finalQuery = await transformQueryUsingConstructs(userQuery, mappers, options);
 
   const stages: RewriteStage[] = [{
     label: 'Original',
@@ -173,7 +197,7 @@ export async function transformQueryStages(
     query: userQuery.trim(),
   }];
   // A fresh mapping per stage walk, and a fresh rewriter per stage: nothing of a run is meant to outlive it.
-  const passes = passesOver(mappers);
+  const passes = passesOver(mappers, options);
   for (const [ index, pass ] of [ undefined, ...passes ].entries()) {
     const label = pass?.label ?? 'Parsed';
     const description = pass?.description ??
