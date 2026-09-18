@@ -2,13 +2,9 @@
   "name": "2026-demo-construct-query-rewrite",
   "private": true,
   "version": "0.0.1",
-  "workspaces": [
-    "sparql-view-unfold"
-  ],
   "type": "module",
   "scripts": {
     "setup": "svelte-kit sync",
-    "build:lib": "tsc -b sparql-view-unfold && tsc -b sparql-view-unfold/tsconfig.cjs.json",
     "dev": "vite dev",
     "clean": "git clean -dfx",
     "build": "vite build",
@@ -46,7 +42,7 @@
     "@traqula/rules-sparql-1-2": "^1.3.0",
     "highlight.js": "^11.11.1",
     "rdf-data-factory": "^2.0.2",
-    "sparql-view-unfold": "^0.0.0"
+    "sparql-view-unfold": "^0.0.0-alpha.1"
   },
   "resolutions": {
     "@traqula/algebra-sparql-1-1": "1.3.1",

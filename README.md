@@ -20,21 +20,13 @@ Now open the webapp at `http://localhost:3000/`.
 
 ## Development
 
-The rewriting itself is [`sparql-view-unfold`](https://github.com/jitsedesmet/sparql-view-unfold). This
-repository holds the demo around it: the mappings, the query editor, the step slider, and the one thing the
-package deliberately does not assume — that the sources hold RDF 1.1 (`src/lib/mapping/rdf11Source.ts`).
-
-The package is linked in as a yarn workspace from a checkout beside this file, which git ignores:
+The rewriting itself is the [`sparql-view-unfold`](https://www.npmjs.com/package/sparql-view-unfold)
+package. What lives here is the demo around it: the mappings, the query editor, the step slider that shows
+the query after every pass, and the one thing the package deliberately does not assume — that the sources
+hold RDF 1.1, which `src/lib/mapping/rdf11Source.ts` states as part of the mapping and takes back out of
+the rewritten query.
 
 ```bash
-git clone git@github.com:jitsedesmet/sparql-view-unfold.git
 yarn install
-yarn build:lib   # the workspace ships compiled JS, so it has to be built before the demo can import it
 yarn dev
 ```
-
-`yarn build:lib` builds the workspace with this repository's TypeScript rather than through the package's
-own `build` script, which hard-codes a `node_modules/typescript` a hoisted workspace install does not have.
-
-To build against the published package instead, drop the `workspaces` entry from `package.json` and the
-`COPY sparql-view-unfold/package.json` line from the `Dockerfile`; nothing else refers to the checkout.

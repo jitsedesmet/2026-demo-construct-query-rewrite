@@ -8,14 +8,6 @@ const diagnosticsChannelShim = fileURLToPath(
 
 export default defineConfig({
   plugins: [sveltekit()],
-  server: {
-    fs: {
-      // The sparql-view-unfold workspace is a symlink into a sibling checkout, so Vite resolves its files
-      // to a real path outside the allow list SvelteKit sets (which covers node_modules, not what a
-      // workspace link points at). Dev-only: a build inlines the package.
-      allow: ['sparql-view-unfold'],
-    },
-  },
   resolve: {
     alias: [
       // lru-cache's CJS build (pulled in by Comunica) requires node:diagnostics_channel
