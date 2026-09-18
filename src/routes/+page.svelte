@@ -378,6 +378,18 @@ WHERE {
       </svg>
       <span>Source code</span>
     </a>
+    <a href="https://www.npmjs.com/package/sparql-view-unfold">
+      <svg height="1.3rem" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512">
+        <path d="M288 288h-32v-64h32v64zm288-128v192H288v32H160v-32H0V160h576zm-416 32H32v128h64v-96h32v96h32V192zm160 0H192v160h64v-32h64V192zm224 0H352v128h64v-96h32v96h32v-96h32v96h32V192z"></path>
+      </svg>
+      <span>npm package</span>
+    </a>
+    <a href="https://2026-semantics-rewriting.jitsedesmet.be/">
+      <svg height="1.3rem" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+        <path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 288c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128z"></path>
+      </svg>
+      <span>Paper</span>
+    </a>
   </footer>
 </div>
 
