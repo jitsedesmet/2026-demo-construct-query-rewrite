@@ -3,7 +3,8 @@
   import YasqeEditor from "$lib/components/YasqeEditor.svelte";
   import MappingEditor from "$lib/components/MappingEditor.svelte";
   import PipelineSlider from "$lib/components/PipelineSlider.svelte";
-  import type { Mapping, RewriteStage } from "$lib/mapping";
+  import OptionToggle from "$lib/components/OptionToggle.svelte";
+  import type { Mapping, RewriteOptions, RewriteStage } from "$lib/mapping";
   import {
     DEFAULT_MAPPING_QUERY,
     DEFAULT_MAPPING_LABEL,
@@ -57,6 +58,10 @@ WHERE {
   FILTER LANGMATCHES(LANG(?name),  "EN")
 }`;
   let query = $state<string>(getQueryParam('query') ?? defaultQuery);
+  /** The rewriting options the toggles above the rewritten query turn; both are off in the package too. */
+  let preserveCardinality = $state(false);
+  let generalizedRdfView = $state(false);
+  let rewriteOptions = $derived<RewriteOptions>({ preserveCardinality, generalizedRdfView });
   /** The query after every step of the rewriting pipeline. */
   let rewriteStages = $state<RewriteStage[]>([]);
   /** The step the slider sits on; a fresh rewrite lands on the last one, the query that gets executed. */
@@ -78,10 +83,11 @@ WHERE {
   $effect(() => {
     const currentQuery = query;
     const mapperQueries = mappings.map(m => m.query);
+    const options = rewriteOptions;
     let cancelled = false;
     const id = setTimeout(async () => {
       try {
-        const stages = await transformQueryStages(currentQuery, mapperQueries);
+        const stages = await transformQueryStages(currentQuery, mapperQueries, options);
         if (!cancelled) {
           rewriteStages = stages;
         }
@@ -282,7 +288,21 @@ WHERE {
 
       <!-- Rewritten query section -->
       <section class="config-section rewritten-section">
-        <h2>Rewritten query <span class="section-hint">(read-only)</span></h2>
+        <div class="rewritten-title-row">
+          <h2>Rewritten query <span class="section-hint">(read-only)</span></h2>
+          <div class="option-toggles">
+            <OptionToggle
+              label="preserveCardinality"
+              title="Count a triple two solutions of a mapping body both produce once, the way the mapped graph - a set - does, rather than twice. Costly: it deduplicates the body of every unfolded pattern."
+              bind:checked={preserveCardinality}
+            />
+            <OptionToggle
+              label="generalizedRdfView"
+              title="Read the mapped graph as generalized RDF, which admits a literal as a subject and a blank node as a predicate, so that a head variable costs no type test and keeps those solutions."
+              bind:checked={generalizedRdfView}
+            />
+          </div>
+        </div>
         {#if rewriteStages.length > 0}
           <PipelineSlider stages={rewriteStages} bind:index={stageIndex} />
         {/if}
@@ -326,7 +346,7 @@ WHERE {
           bind:queryRunning
           bind:queryStartTime
           bind:queryCancelled
-          rewrite={(q) => transformQueryUsingConstructs(q, mappings.map(m => m.query))}
+          rewrite={(q) => transformQueryUsingConstructs(q, mappings.map(m => m.query), rewriteOptions)}
           sources={selectedSources}
         />
         {#if queryRunning}
@@ -477,6 +497,26 @@ WHERE {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .rewritten-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .rewritten-title-row h2 {
+    margin: 0;
+  }
+
+  .option-toggles {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .section-title-row h2 {
