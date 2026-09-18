@@ -1,29 +1,31 @@
+import {
+  createQueryRewriter,
+  filterFalseTransformation,
+  mappingFromConstructQueries,
+  nullifyJoinOverIncompatibleBoundsTransformation,
+  pullUpExtendsTransformation,
+  pushDownAssertionsTransformation,
+  removeProjectionsTransformation,
+  rewriteNonRecursivePathsTransformation,
+  unfoldingTransformation,
+} from 'sparql-view-unfold';
+import type { QueryTransformation } from 'sparql-view-unfold';
+import { nullifyTripleTermsFromSourceTransformation } from './rdf11Source.js';
+
 /**
- * @fileoverview SPARQL Query Rewriting for RDF 1.2 over RDF 1.1.
+ * @fileoverview SPARQL query rewriting for RDF 1.2 over RDF 1.1, as this demo runs it.
  *
- * Rewrites SPARQL 1.2 queries - which may contain triple terms and other RDF 1.2 features - into equivalent
- * SPARQL 1.1 queries that can be executed against RDF 1.1 data sources.
+ * The rewriting itself lives in [`sparql-view-unfold`](https://github.com/jitsedesmet/sparql-view-unfold);
+ * what is here is the demo's use of it. Two things make that more than a call:
  *
- * **Mappings** are SPARQL CONSTRUCT queries defining how RDF 1.2 data is represented in RDF 1.1: the
- * template (head) shows the RDF 1.2 pattern, the WHERE clause (body) the equivalent RDF 1.1
- * representation. Each triple pattern of the user query is then rewritten to a UNION of subselects, one per
- * mapping that could produce matching data.
- *
- * Everything but this file is vendored from https://github.com/jitsedesmet/2025-query-rewriting-1-2,
- * trimmed to the modules the demo's pipeline reaches. Do not edit the vendored files - re-sync them.
- * @module query-rewriting-1-2
+ * - the demo shows the query after *every* pass, so the pipeline is built out of the package's individual
+ *   transformations rather than taken whole from `createDefaultTransformationPipeline`, each carrying the
+ *   label and the line of prose the step slider renders;
+ * - the demo's sources hold RDF 1.1, which the package does not assume of a view's data, so one pass of the
+ *   demo's own empties the branches that would ask them for a triple term - see {@link rdf11Source}.
+ * @module mapping
  * @see {@link https://w3c.github.io/rdf-interop/spec/} RDF 1.2 Interoperability Spec
  */
-import type { Algebra } from '@traqula/algebra-transformations-1-2';
-import { operationTransform, queryTransform } from './transformBgp.js';
-import type { TransformContext } from './transformContext.js';
-import { transformContextFromConstructs } from './transformContext.js';
-import {
-  pullUpExtends,
-  pushDownAssertions,
-  removeProjections,
-  transformFilterFalse,
-} from './transformations/index.js';
 
 /**
  * One pass of the pipeline, together with how the demo names it in the step slider.
@@ -34,71 +36,87 @@ interface Pass {
   /** One line on what this pass does to the query */
   description: string;
   /** The pass itself */
-  apply: (c: TransformContext, op: Algebra.Operation) => Algebra.Operation;
+  apply: QueryTransformation;
 }
 
 /**
  * The pipeline the demo runs, in order.
  *
- * `transformFilterFalse` is interleaved between the heavier passes: each of them can leave `FILTER(FALSE)`
- * behind (a pattern no mapping can produce, a UNION branch pruned by an assertion), and collapsing those
- * before the next pass keeps the plan that pass has to reason over small.
+ * It is `createDefaultTransformationPipeline` written out, so that each pass can be labelled and so that the
+ * RDF 1.1 step can be slotted in where it reads best: after the pushdown has driven the unfolding's
+ * `isTRIPLE` guards down onto the variables the patterns bind, and before `removeProjections` flattens the
+ * scopes the emptied branches sit in.
  *
- * `removeProjections` runs late, and only there: the passes above read the sub-SELECTs the rewriting nests
- * as the scoping barriers they are, so flattening them earlier would take that away. Afterwards nothing
- * needs them, and one flat query is both what a reader of the demo wants to see and what an endpoint can
- * plan over.
- *
- * `pullUpExtends` then runs a second time, on what the flattening opened up. Its first run floats a `BIND`
- * no further than the projection above it, that being where the name it binds stops existing; with those
- * projections gone the same binds can travel on - and a bind that arrives somewhere nothing reads it is
- * one the pass deletes.
+ * The order is not a preference, it is what each step needs to see. Paths are expanded *before* the
+ * unfolding, which only knows triple patterns. `FILTER(FALSE)` is collapsed after every step that can
+ * produce one, so the next step has less to walk. The pushdown drives terms into the leaves and the
+ * pull-up floats the binds it leaves behind back out, in that order, because the pushdown is what creates
+ * them. `nullifyJoinOverIncompatibleBounds` comes last, after `removeProjections` and `pullUpExtends`: it
+ * reads each join operand's top-level `EXTEND` chain and halts at a `PROJECT`, so anywhere earlier it sees
+ * nothing at all.
+ * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
+ * @returns the passes, in the order they run
  */
-const PASSES: Pass[] = [
-  {
-    label: 'Prune empty',
-    description: 'Collapses any FILTER(FALSE) the user wrote, by the identities of the empty solution multiset.',
-    apply: transformFilterFalse,
-  },
-  {
-    label: 'Unfold mappings',
-    description: 'Replaces every triple pattern by a UNION of sub-SELECTs, one per mapping that could produce it.',
-    apply: operationTransform,
-  },
-  {
-    label: 'Prune empty',
-    description: 'Drops the branches the unfolding left empty: patterns no mapping head can ever match.',
-    apply: transformFilterFalse,
-  },
-  {
-    label: 'Push down assertions',
-    description: 'Pushes FILTER(sameTerm(…)) into the patterns below it, substituting terms and pruning branches.',
-    apply: pushDownAssertions,
-  },
-  {
-    label: 'Prune empty',
-    description: 'Collapses what the pushdown emptied: a branch whose assertions contradict each other.',
-    apply: transformFilterFalse,
-  },
-  {
-    label: 'Pull up binds',
-    description: 'Floats the BINDs the pushdown left at the leaves back up, deleting the ones nothing reads.',
-    apply: pullUpExtends,
-  },
-  {
-    label: 'Flatten sub-SELECTs',
-    description: 'Removes the projections the unfolding nested, renaming whatever each of them hid.',
-    apply: removeProjections,
-  },
-  {
-    label: 'Pull up binds',
-    description: 'Runs again on what the flattening opened up: binds can now travel past the gone projections.',
-    apply: pullUpExtends,
-  },
-];
-
-const TRANSFORMATIONS: ((c: TransformContext, op: Algebra.Operation) => Algebra.Operation)[] =
-  PASSES.map(pass => pass.apply);
+function passesOver(mappers: readonly string[]): Pass[] {
+  const mapping = mappingFromConstructQueries(mappers);
+  return [
+    {
+      label: 'Expand paths',
+      description: 'Expands the non-recursive property paths into triple patterns, which is all the unfolding knows.',
+      apply: rewriteNonRecursivePathsTransformation(),
+    },
+    {
+      label: 'Unfold mappings',
+      description: 'Replaces every triple pattern by a UNION of sub-SELECTs, one per mapping that could produce it.',
+      apply: unfoldingTransformation(mapping),
+    },
+    {
+      label: 'Prune empty',
+      description: 'Drops the branches the unfolding left empty: patterns no mapping head can ever match.',
+      apply: filterFalseTransformation(),
+    },
+    {
+      label: 'Push down assertions',
+      description: 'Pushes FILTER(sameTerm(…)) into the patterns below it, substituting terms and pruning branches.',
+      apply: pushDownAssertionsTransformation(),
+    },
+    {
+      label: 'Drop what RDF 1.1 cannot answer',
+      description: 'Empties every branch that still needs a triple term out of the source, which holds RDF 1.1.',
+      apply: nullifyTripleTermsFromSourceTransformation(),
+    },
+    {
+      label: 'Prune empty',
+      description: 'Collapses what the pushdown emptied: a branch whose assertions contradict each other, a branch that would have asked RDF 1.1 for a triple term.',
+      apply: filterFalseTransformation(),
+    },
+    {
+      label: 'Pull up binds',
+      description: 'Floats the BINDs the pushdown left at the leaves back up, deleting the ones nothing reads.',
+      apply: pullUpExtendsTransformation(),
+    },
+    {
+      label: 'Prune empty',
+      description: 'Collapses what the pull-up emptied, so that the flattening below has less to walk.',
+      apply: filterFalseTransformation(),
+    },
+    {
+      label: 'Flatten sub-SELECTs',
+      description: 'Removes the projections the unfolding nested, renaming whatever each of them hid.',
+      apply: removeProjectionsTransformation(),
+    },
+    {
+      label: 'Nullify impossible joins',
+      description: 'Replaces a join whose branches bind one variable to two different terms by the empty result.',
+      apply: nullifyJoinOverIncompatibleBoundsTransformation(),
+    },
+    {
+      label: 'Prune empty',
+      description: 'A last collapse, of what the nullification and the flattening between them emptied.',
+      apply: filterFalseTransformation(),
+    },
+  ];
+}
 
 /**
  * The query as it stands at one point of the pipeline - what the demo's step slider walks through.
@@ -116,25 +134,23 @@ export interface RewriteStage {
  * Rewrites a user query against the mappings given as SPARQL CONSTRUCT strings.
  * @param userQuery - The SPARQL 1.2 query to rewrite
  * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
- * @param transformations - The passes to run, in order; defaults to the demo's pipeline
  * @returns the rewritten SPARQL 1.1 query
  */
-export function transformQueryUsingConstructs(
+export async function transformQueryUsingConstructs(
   userQuery: string,
-  mappers: string[],
-  transformations = TRANSFORMATIONS,
-): string {
-  const transformerContext = transformContextFromConstructs(mappers);
-  return queryTransform(transformerContext, userQuery, transformations).trim();
+  mappers: readonly string[],
+): Promise<string> {
+  const rewriter = createQueryRewriter(passesOver(mappers).map(pass => pass.apply));
+  return (await rewriter.rewriteQuery(userQuery)).trim();
 }
 
 /**
  * Rewrites a user query, keeping the query as it stood after every step of the pipeline.
  *
- * Each step is a full run of {@link queryTransform} over a prefix of the pipeline rather than a snapshot
- * taken while one run walks it: every intermediate algebra then goes back through the same wrap-up - the
- * projection, the renaming of the `uq_` variables back to the user's own, the solution modifiers - and so
- * every step is a query that can be read, and run, on its own.
+ * Each step is a full rewrite over a prefix of the pipeline rather than a snapshot taken while one run
+ * walks it: every intermediate algebra then goes back through the same wrap-up - the projection, the
+ * renaming of the `uq_` variables back to the user's own, the solution modifiers - and so every step is a
+ * query that can be read, and run, on its own.
  *
  * The last stage is exactly what {@link transformQueryUsingConstructs} returns, and an error in it is
  * thrown rather than reported as a stage: that stage is the query the demo executes. A step in between
@@ -144,33 +160,34 @@ export function transformQueryUsingConstructs(
  * @param mappers - CONSTRUCT queries defining how the RDF 1.2 data is represented in RDF 1.1
  * @returns the original query, the parsed query, and the query after each pass
  */
-export function transformQueryStages(userQuery: string, mappers: string[]): RewriteStage[] {
+export async function transformQueryStages(
+  userQuery: string,
+  mappers: readonly string[],
+): Promise<RewriteStage[]> {
   // Run the whole pipeline first: if the rewriting fails, it fails the way it does without the slider.
-  const finalQuery = transformQueryUsingConstructs(userQuery, mappers);
+  const finalQuery = await transformQueryUsingConstructs(userQuery, mappers);
 
   const stages: RewriteStage[] = [{
     label: 'Original',
     description: 'The SPARQL 1.2 query as written, before any rewriting.',
     query: userQuery.trim(),
   }];
-  for (const [ index, pass ] of [ undefined, ...PASSES ].entries()) {
+  // A fresh mapping per stage walk, and a fresh rewriter per stage: nothing of a run is meant to outlive it.
+  const passes = passesOver(mappers);
+  for (const [ index, pass ] of [ undefined, ...passes ].entries()) {
     const label = pass?.label ?? 'Parsed';
     const description = pass?.description ??
-      'The query as the algebra sees it: property paths and blank nodes expanded, and every user variable ' +
-      'namespaced so that what the mappings introduce cannot collide with it.';
+      'The query as the algebra sees it: blank nodes expanded, and every user variable namespaced so that ' +
+      'what the mappings introduce cannot collide with it.';
     // The last stage is the one already computed - and the only one whose failure is fatal.
-    if (index === PASSES.length) {
+    if (index === passes.length) {
       stages.push({ label, description, query: finalQuery });
       break;
     }
     let query: string;
     try {
-      // A fresh context per run: nothing of a run of the pipeline is meant to outlive it.
-      query = queryTransform(
-        transformContextFromConstructs(mappers),
-        userQuery,
-        TRANSFORMATIONS.slice(0, index),
-      ).trim();
+      const rewriter = createQueryRewriter(passes.slice(0, index).map(earlier => earlier.apply));
+      query = (await rewriter.rewriteQuery(userQuery)).trim();
     } catch (error: unknown) {
       query = `# This intermediate step cannot be written back as SPARQL:\n# ${
         (<Error> error).message.split('\n').join('\n# ')}`;
