@@ -10,7 +10,7 @@ import {
   unfoldingTransformation,
 } from 'sparql-view-unfold';
 import type { QueryTransformation } from 'sparql-view-unfold';
-import { dropRdf11SourceAssumptionTransformation, withRdf11SourceAssumption } from './rdf11Source.js';
+import { nullifyTripleTermsFromSourceTransformation } from './rdf11Source.js';
 
 /**
  * @fileoverview SPARQL query rewriting for RDF 1.2 over RDF 1.1, as this demo runs it.
@@ -21,8 +21,8 @@ import { dropRdf11SourceAssumptionTransformation, withRdf11SourceAssumption } fr
  * - the demo shows the query after *every* pass, so the pipeline is built out of the package's individual
  *   transformations rather than taken whole from `createDefaultTransformationPipeline`, each carrying the
  *   label and the line of prose the step slider renders;
- * - the demo's sources hold RDF 1.1, which the package does not assume of a view's data. That assumption
- *   goes in as part of the mapping and comes back out at the end - see {@link rdf11Source}.
+ * - the demo's sources hold RDF 1.1, which the package does not assume of a view's data, so one pass of the
+ *   demo's own empties the branches that would ask them for a triple term - see {@link rdf11Source}.
  * @module mapping
  * @see {@link https://w3c.github.io/rdf-interop/spec/} RDF 1.2 Interoperability Spec
  */
@@ -42,10 +42,10 @@ interface Pass {
 /**
  * The pipeline the demo runs, in order.
  *
- * It is `createDefaultTransformationPipeline` written out, so that each pass can be labelled and so that
- * the RDF 1.1 source assumption can be taken back out at the one point it has to be: after the passes that
- * read assertions, and before `removeProjections` renames away the prefixes that tell the demo's own
- * conjuncts from the user's.
+ * It is `createDefaultTransformationPipeline` written out, so that each pass can be labelled and so that the
+ * RDF 1.1 step can be slotted in where it reads best: after the pushdown has driven the unfolding's
+ * `isTRIPLE` guards down onto the variables the patterns bind, and before `removeProjections` flattens the
+ * scopes the emptied branches sit in.
  *
  * The order is not a preference, it is what each step needs to see. Paths are expanded *before* the
  * unfolding, which only knows triple patterns. `FILTER(FALSE)` is collapsed after every step that can
@@ -58,7 +58,7 @@ interface Pass {
  * @returns the passes, in the order they run
  */
 function passesOver(mappers: readonly string[]): Pass[] {
-  const mapping = withRdf11SourceAssumption(mappingFromConstructQueries(mappers));
+  const mapping = mappingFromConstructQueries(mappers);
   return [
     {
       label: 'Expand paths',
@@ -81,8 +81,13 @@ function passesOver(mappers: readonly string[]): Pass[] {
       apply: pushDownAssertionsTransformation(),
     },
     {
+      label: 'Drop what RDF 1.1 cannot answer',
+      description: 'Empties every branch that still needs a triple term out of the source, which holds RDF 1.1.',
+      apply: nullifyTripleTermsFromSourceTransformation(),
+    },
+    {
       label: 'Prune empty',
-      description: 'Collapses what the pushdown emptied: a branch whose assertions contradict each other, a branch needing a triple term out of RDF 1.1.',
+      description: 'Collapses what the pushdown emptied: a branch whose assertions contradict each other, a branch that would have asked RDF 1.1 for a triple term.',
       apply: filterFalseTransformation(),
     },
     {
@@ -94,11 +99,6 @@ function passesOver(mappers: readonly string[]): Pass[] {
       label: 'Prune empty',
       description: 'Collapses what the pull-up emptied, so that the flattening below has less to walk.',
       apply: filterFalseTransformation(),
-    },
-    {
-      label: 'Drop the RDF 1.1 assumption',
-      description: 'Removes the !isTRIPLE(?x) the mappings were restricted by: a tautology for a source that holds RDF 1.1.',
-      apply: dropRdf11SourceAssumptionTransformation(),
     },
     {
       label: 'Flatten sub-SELECTs',
