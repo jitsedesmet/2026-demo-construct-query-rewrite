@@ -22,7 +22,7 @@
     queryStartTime?: number;
     queryCancelled?: boolean;
     /** Rewrites the query into the SPARQL 1.1 one that is actually executed. */
-    rewrite?: (query: string) => string;
+    rewrite?: (query: string) => string | Promise<string>;
     sources?: string[];
   }
   let {
@@ -85,7 +85,7 @@
         queryCancelled = false;
         queryStartTime = Date.now();
 
-        const bindingStream = await engine.queryBindings(rewrite(query), { sources: querySources });
+        const bindingStream = await engine.queryBindings(await rewrite(query), { sources: querySources });
         activeStream = bindingStream;
         bindingStream.on('data', (binding: Bindings) => {
           if (thisAbortController.signal.aborted) return;

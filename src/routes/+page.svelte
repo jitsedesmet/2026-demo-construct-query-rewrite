@@ -71,18 +71,28 @@ WHERE {
    * walking the whole pipeline costs a few hundred milliseconds. A rewrite that throws - a half-typed
    * mapping, a query the rewriting rejects - leaves the last steps standing, and the error itself surfaces
    * where it did before, on execute.
+   *
+   * The rewriting is asynchronous, so a run that the next keystroke has already made stale can still come
+   * back: `cancelled` is what keeps it from overwriting the steps of the run that replaced it.
    */
   $effect(() => {
     const currentQuery = query;
     const mapperQueries = mappings.map(m => m.query);
-    const id = setTimeout(() => {
+    let cancelled = false;
+    const id = setTimeout(async () => {
       try {
-        rewriteStages = transformQueryStages(currentQuery, mapperQueries);
+        const stages = await transformQueryStages(currentQuery, mapperQueries);
+        if (!cancelled) {
+          rewriteStages = stages;
+        }
       } catch {
         // Keep whatever the last query that did rewrite left behind.
       }
     }, 400);
-    return () => clearTimeout(id);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
   });
 
   $effect(() => {

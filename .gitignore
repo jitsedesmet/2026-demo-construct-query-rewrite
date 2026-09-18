@@ -1,5 +1,9 @@
 node_modules
 
+# The sparql-view-unfold workspace is a local checkout of the published package, linked in place so the
+# two can be developed together. It is a git repository of its own; this one only points at the package.
+/sparql-view-unfold
+
 # Output
 .output
 .vercel
